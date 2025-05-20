@@ -132,15 +132,17 @@ void loop()
 
     //Set target motor speed proportional to tilt angle
     //Note: this is for demonstrating accelerometer and motors - it won't work as a balance controller
-    step1.setTargetSpeedRad(tiltx*kx);
-    step2.setTargetSpeedRad(-tiltx*kx);
+    //step1.setTargetSpeedRad(tiltx*kx);
+    //step2.setTargetSpeedRad(-tiltx*kx);
+    step1.setTargetSpeedRad(15);
+    step2.setTargetSpeedRad(-15);
   }
   
   //Print updates every PRINT_INTERVAL ms
   //Line format: X-axis tilt, Motor speed, A0 Voltage
   if (millis() > printTimer) {
     printTimer += PRINT_INTERVAL;
-    Serial.print(tiltx*1000);
+    Serial.print(tiltx*1000); // 
     Serial.print(' ');
     Serial.print(tilty*1000);
     Serial.print(' ');
