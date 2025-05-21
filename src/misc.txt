@@ -1,0 +1,50 @@
+// //Constants - need to use trial and error to fix them
+// float Kp = 1;
+// float Ki = 1;
+// float Kd = 1;
+// float c = 0.9;
+// long previous_time = millis();
+
+// void loop(){
+
+//     sensors_event_t a, g, temp;
+//     mpu.getEvent(&a, &g, &temp);
+
+//     //approximation for now - probably smarter to change to more accurate angle reading
+//     //using the same as base code - sin x = x and approximating the graviation
+//     float tiltx = a.acceleration.x/9.67;
+//     float tilty = a.acceleration.y/9.67;
+//     float tiltz = a.acceleration.z/9.67;
+
+//     //complementary filter
+
+//     float tilt_angle = a.acceleration.x/9.67; //accelerometer
+//     float differential = g.gyro.y; //gyroscope
+
+//     unsigned long current_time = millis();
+//     float dt = (current_time - previous_time)/1000;
+//     previous_time = current_time;
+
+//     float theta_n = (1-c)*tilt_angle + c*(differential*dt+theta_n);
+    
+//     //PID
+//     float reference = 0;
+
+//     float derivative = 
+//     float integral = 
+
+//     float error = reference - output;
+//     float uoutput = Kp*error + Ki*integral + Kd+derivative;
+
+//     step1.setTargetSpeedRad(uoutput);
+//     step2.setTargetSpeedRad(-uoutput);
+
+//     Serial.print(tilt_angle);
+//     Serial.print(' ');
+//     Serial.print(theta_n);
+//     Serial.print(' ');
+//     Serial.print(uoutput);
+// }
+
+
+
