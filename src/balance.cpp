@@ -22,8 +22,8 @@ const int ADC_MOSI_PIN      = 23;
 const int TOGGLE_PIN        = 32;
 
 const int PRINT_INTERVAL    = 500;
-const int LOOP_INTERVAL     = 5;
-const int STEPPER_INTERVAL_US = 10;
+const int LOOP_INTERVAL     = 20;
+const int STEPPER_INTERVAL_US = 20;
 
 const float kx = 20.0;
 const float VREF = 4.096;
@@ -32,7 +32,7 @@ const float VREF = 4.096;
 ESP32Timer ITimer(3);
 Adafruit_MPU6050 mpu;         //Default pins for I2C are SCL: IO22, SDA: IO21
 
-step step1(STEPPER_INTERVAL_US,STEPPER1_STEP_PIN,STEPPER1_DIR_PIN );
+step step1(STEPPER_INTERVAL_US,STEPPER1_STEP_PIN,STEPPER1_DIR_PIN );  // of class step, object step1, inputs are from pins 
 step step2(STEPPER_INTERVAL_US,STEPPER2_STEP_PIN,STEPPER2_DIR_PIN );
 
 
@@ -109,75 +109,26 @@ void setup()
 }
 
 
-// //Constants - need to use trial and error to fix them
-// float Kp = 1;
-// float Ki = 1;
-// float Kd = 1;
-// float c = 0.9;
-// long previous_time = millis();
-
-// void loop(){
-
-//     sensors_event_t a, g, temp;
-//     mpu.getEvent(&a, &g, &temp);
-
-//     //approximation for now - probably smarter to change to more accurate angle reading
-//     //using the same as base code - sin x = x and approximating the graviation
-//     float tiltx = a.acceleration.z/9.67;
-//     float tilty = a.acceleration.y/9.67;
-//     float tiltz = a.acceleration.x/9.67;
-
-//     //complementary filter
-
-//     float tilt_angle = a.acceleration.x/9.67; //accelerometer
-//     float differential = g.gyro.y; //gyroscope
-
-//     unsigned long current_time = millis();
-//     float dt = (current_time - previous_time)/1000;
-//     previous_time = current_time;
-
-//     float theta_n = (1-c)*tilt_angle + c*(differential*dt+theta_n);
-    
-//     //PID
-//     float reference = 0;
-
-//     float derivative = 
-//     float integral = 
-
-//     float error = reference - output;
-//     float uoutput = Kp*error + Ki*integral + Kd+derivative;
-
-//     step1.setTargetSpeedRad(uoutput);
-//     step2.setTargetSpeedRad(-uoutput);
-
-//     Serial.print(tilt_angle);
-//     Serial.print(' ');
-//     Serial.print(theta_n);
-//     Serial.print(' ');
-//     Serial.print(uoutput);
-
-
-
-
-
-// }
-
-
 
 void loop(){
-    static float Kp = 100.0;
-    static float Ki = 0.0;
-    static float Kd = 0.0;
-    static float c = 0.9;
+    static float Kp = 40.0;
+    static float Ki = 40.0;
+    static float Kd = 60.0;
+    static float c = 0.96;
     static unsigned long previous_time = millis();
     static unsigned long printTimer = 0;
     static unsigned long loopTimer = 0;
-    static float theta_n = 0.0;
+    static float theta_n = 0.000;
     static float integral = 0.0;
     static float uoutput = 0.0;
-    static float tilt_angle = 0.0;
-
-
+    static float tilt_angle_x = 0.0;
+    static float tilt_angle_y = 0.0;
+    static float tilt_angle_z = 0.0;  
+    static float gyro_x = 0.0;  
+    static float gyro_y = 0.0;  
+    static float gyro_z = 0.0;  
+    static float error = 0.0;  
+            
     if (millis() > loopTimer){
         loopTimer += LOOP_INTERVAL;
         //complementary function
@@ -185,22 +136,27 @@ void loop(){
         sensors_event_t a, g, temp;
         mpu.getEvent(&a, &g, &temp);
 
-        tilt_angle = a.acceleration.x/9.67; //accelerometer
+        tilt_angle_x = a.acceleration.x/9.67; //accelerometer
+        tilt_angle_y = a.acceleration.y/9.67;   
+        tilt_angle_z = a.acceleration.z/9.67; 
         //tilt_angle = atan2(a.acceleration.x, a.acceleration.z) - 2.1;
-        float gyrogyro = g.gyro.y; //gyroscope
+        gyro_x = g.gyro.x;          //gyroscope        // Y angle?
+        gyro_y = g.gyro.y;      
+        gyro_z = g.gyro.z;  
 
+        // if(tilt_angle_z < 0.1 || tilt_angle_z)
         unsigned long current_time = millis();
         float dt = (current_time - previous_time)/1000;
         previous_time = current_time;
 
-        theta_n = (1-c)*tilt_angle + c*(gyrogyro*dt+theta_n);
+        theta_n = (1-c)*tilt_angle_z + c*(gyro_y*dt+theta_n);    
 
         //PID
 
-        float reference = 0.02;
-        float error = reference - theta_n;
+        float reference = 0.0260;               // reference == setpoint (for theory)
+        error = reference - theta_n;    
 
-        float derivative = -gyrogyro;
+        float derivative = -gyro_y;
         integral += error*dt;
 
         uoutput = Kp*error + Ki*integral + Kd*derivative;
@@ -211,12 +167,19 @@ void loop(){
 
     if (millis() > printTimer){
         printTimer += PRINT_INTERVAL;
-
-        Serial.print(tilt_angle);
+        // Serial.print("gyro_x: ");
+        // Serial.print(gyro_x);
+        // Serial.print(" | gyro_y: ");
+        // Serial.print(gyro_y);
+        // Serial.print(" | gyro_z: ");
+        // Serial.print(gyro_z);
+        // Serial.println();
+        Serial.print(tilt_angle_z, 4);
         Serial.print(' ');
-        Serial.print(theta_n);
+        Serial.print(theta_n, 4);
         Serial.print(' ');
-        Serial.print(uoutput);
+        Serial.print(error, 4);
+        // Serial.print(uoutput);
         Serial.println();
     }
 
