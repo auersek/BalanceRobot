@@ -1,0 +1,83 @@
+// ESP32 Ultrasonic Distance Sensor (HC-SR04 with All Optionals)
+
+#include <Arduino.h>
+
+#define TRIG_PIN 25
+#define ECHO_PIN 26
+#define NUM_READINGS 5
+#define OBSTACLE_THRESHOLD_CM 15
+
+long readings[NUM_READINGS];
+int index = 0;
+long total = 0;
+bool motorsStopped = false;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  // Fill initial readings buffer
+  for (int i = 0; i < NUM_READINGS; i++) {
+    readings[i] = getDistanceCM();
+    total += readings[i];
+  }
+}
+
+long getDistanceCM() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  long duration = pulseIn(ECHO_PIN, HIGH, 30000); // Timeout after 30 ms
+  if (duration == 0) return -1; // No echo received
+  return duration / 58.0; // Convert time to distance (cm)
+}
+
+long getSmoothedDistance() {
+  long newReading = getDistanceCM();
+  if (newReading == -1) return -1;
+
+  total -= readings[index];
+  readings[index] = newReading;
+  total += readings[index];
+  index = (index + 1) % NUM_READINGS;
+
+  return total / NUM_READINGS;
+}
+
+void stopMotors() {
+  // Stub: replace with your actual motor stop commands
+  Serial.println("Motors stopped.");
+  motorsStopped = true;
+}
+
+void resumeMotors() {
+  // Stub: replace with your actual motor resume commands
+  Serial.println("Motors resumed.");
+  motorsStopped = false;
+}
+
+void loop() {
+  long distance = getSmoothedDistance();
+  if (distance == -1) {
+    Serial.println("No obstacle detected");
+  } else {
+    Serial.print("Distance (smoothed): ");
+    Serial.print(distance);
+    Serial.println(" cm");
+
+    if (distance < OBSTACLE_THRESHOLD_CM) {
+      if (!motorsStopped) {
+        stopMotors();
+      }
+    } else {
+      if (motorsStopped) {
+        resumeMotors();
+      }
+    }
+  }
+  delay(200);
+}
