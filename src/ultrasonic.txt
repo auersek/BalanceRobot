@@ -1,5 +1,3 @@
-// ESP32 Ultrasonic Distance Sensor (HC-SR04 with All Optionals)
-
 #include <Arduino.h>
 
 #define TRIG_PIN 25
