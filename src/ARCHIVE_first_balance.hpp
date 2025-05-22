@@ -95,11 +95,8 @@ void setup()
   Serial.println("Initialised Interrupt for Stepper");
 
   //Set motor acceleration values
-  step1.setAccelerationRad(15.0);             // Could potentially be changed for better acceleration? Maybe making it higher would make the robot accelerate faster? 
+  step1.setAccelerationRad(15.0);
   step2.setAccelerationRad(15.0);
-
-  step1.setTargetSpeedRad(0);                 // Can it be used in the loop to set target speed for each iteration? could be useful for controlling the robot? 
-  step2.setTargetSpeedRad(0);
 
   //Enable the stepper motor drivers
   pinMode(STEPPER_EN_PIN,OUTPUT);
@@ -114,40 +111,23 @@ void setup()
 
 
 void loop(){
-    // outer
-    static float Kp_outer = 15.0;           // If the Kp for the inner loop is higher this might need to be a lot higher as well? 
-    static float Ki_outer = 4.0;
-    static float Kd_outer = 0.0;
-    static float integral_outer = 0.0; 
-    static float error_outer = 0.0;
-
-    // Inner loop
-    static float Kp_inner = 40.0;             // Raise to like 10,000
-    static float Ki_inner = 40.0;
-    static float Kd_inner = 60.0;
-    static float integral_inner = 0.0;
-    static float error_inner = 0.0;  
-
-    static float c = 0.96;                  // This c seems to be doing fine in equilibrium for now, might need experimentation
-
+    static float Kp = 40.0;
+    static float Ki = 40.0;
+    static float Kd = 60.0;
+    static float c = 0.96;
     static unsigned long previous_time = millis();
     static unsigned long printTimer = 0;
     static unsigned long loopTimer = 0;
-    static float reference = 0.0;
-
     static float theta_n = 0.000;
-    // static float integral = 0.0;
+    static float integral = 0.0;
     static float uoutput = 0.0;
-
     static float tilt_angle_x = 0.0;
     static float tilt_angle_y = 0.0;
     static float tilt_angle_z = 0.0;  
     static float gyro_x = 0.0;  
     static float gyro_y = 0.0;  
     static float gyro_z = 0.0;  
-
-    static float current_speed;
-    static float target_speed = 0.0; 
+    static float error = 0.0;  
             
     if (millis() > loopTimer){
         loopTimer += LOOP_INTERVAL;
@@ -156,55 +136,37 @@ void loop(){
         sensors_event_t a, g, temp;
         mpu.getEvent(&a, &g, &temp);
 
-        tilt_angle_x = a.acceleration.x/9.67; //accelerometer           This calculation might need to be changed
+        tilt_angle_x = a.acceleration.x/9.67; //accelerometer
         tilt_angle_y = a.acceleration.y/9.67;   
         tilt_angle_z = a.acceleration.z/9.67; 
         //tilt_angle = atan2(a.acceleration.x, a.acceleration.z) - 2.1;
-        gyro_x = g.gyro.x;          //gyroscope       
+        gyro_x = g.gyro.x;          //gyroscope        // Y angle?
         gyro_y = g.gyro.y;      
         gyro_z = g.gyro.z;  
 
+        // if(tilt_angle_z < 0.1 || tilt_angle_z)
         unsigned long current_time = millis();
-        float dt = (current_time - previous_time)/1000;               
+        float dt = (current_time - previous_time)/1000;
         previous_time = current_time;
-        theta_n = (1-c)*tilt_angle_z + c*(gyro_y*dt+theta_n);  
 
-        //  Outer loop
-        float speed1 = step1.getSpeed();                                // what exactly is this measuring? and how accurate is it? 
-        float speed2 = step2.getSpeed();                                // Probably both of these are getSpeedRad();
-        current_speed = (step1.getSpeed() - step2.getSpeed()) / 2.0; 
-        error_outer = target_speed - current_speed;                     // Outer loop measure and set the difference between desired speed and current speed. 
-        integral_outer += error_outer * dt;
-        float derivative_outer = 0; // Add later    
-        // Wanted setpoint
-        // float reference = 0.026;  
-        reference = Kp_outer * error_outer + Ki_outer * integral_outer + Kd_outer * derivative_outer;         // Get a reference angle based on the error. This line will probably need to be modified. To convert to angle
-        
-        // Inner loop
-        error_inner = reference - theta_n;            // inner error, the difference between the desired angle and the current angle
+        theta_n = (1-c)*tilt_angle_z + c*(gyro_y*dt+theta_n);    
 
-        float derivative_inner = -gyro_y;
-        integral_inner += error_inner * dt;
+        //PID
 
-        uoutput = Kp_inner * error_inner + Ki_inner * integral_inner + Kd_inner * derivative_inner;         // same as before
+        float reference = 0.026;               // OR 0.036 sometimes this one works sometimes the other
+        error = reference - theta_n;    
 
-        step1.setTargetSpeedRad(uoutput);                   // maybe different input to function needed 
+        float derivative = -gyro_y;
+        integral += error*dt;
+
+        uoutput = Kp*error + Ki*integral + Kd*derivative;
+
+        step1.setTargetSpeedRad(uoutput);
         step2.setTargetSpeedRad(-uoutput);
     }
 
     if (millis() > printTimer){
         printTimer += PRINT_INTERVAL;
-        Serial.print("Reference: ");
-        Serial.print(reference);
-        Serial.print(" | error Inner: ");
-        Serial.print(error_inner);
-        Serial.print(" | speed: ");
-        Serial.print(current_speed);
-        Serial.println();
-    }
-}
-
-
         // Serial.print("gyro_x: ");
         // Serial.print(gyro_x);
         // Serial.print(" | gyro_y: ");
@@ -212,9 +174,14 @@ void loop(){
         // Serial.print(" | gyro_z: ");
         // Serial.print(gyro_z);
         // Serial.println();
-        // Serial.print(tilt_angle_z, 4);
-        // Serial.print(' ');
-        // Serial.print(theta_n, 4);
-        // Serial.print(' ');
-        // Serial.print(error, 4);
+        Serial.print(tilt_angle_z, 4);
+        Serial.print(' ');
+        Serial.print(theta_n, 4);
+        Serial.print(' ');
+        Serial.print(error, 4);
         // Serial.print(uoutput);
+        Serial.println();
+    }
+
+
+}

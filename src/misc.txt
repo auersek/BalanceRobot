@@ -48,3 +48,34 @@
 
 
 
+        // else if (tilt_angle_z < -0.05) {
+        //   unsigned long current_time = millis();
+        //   float dt = (current_time - previous_time)/1000;
+        //   previous_time = current_time;
+        //   theta_n = (1-c)*tilt_angle_z + c*(gyro_y*dt+theta_n);    
+        //   //PID
+        //   float reference = 0.046;               // reference == setpoint (for theory)
+        //   error = reference - theta_n;    
+        //   float derivative = -gyro_y;
+        //   integral += error*dt;
+        //   uoutput = Kp*error + Ki*integral + Kd*derivative;
+        // }
+        // else if (tilt_angle_z > 0.1) {
+        //   unsigned long current_time = millis();
+        //   float dt = (current_time - previous_time)/1000;
+        //   previous_time = current_time;
+        //   theta_n = (1-c)*tilt_angle_z + c*(gyro_y*dt+theta_n);    
+        //   //PID
+        //   float reference = 0.006;               // reference == setpoint (for theory)
+        //   error = reference - theta_n;    
+        //   float derivative = -gyro_y;
+        //   integral += error*dt;
+        //   uoutput = Kp*error + Ki*integral + Kd*derivative;
+        // }
+
+
+
+
+
+
+
