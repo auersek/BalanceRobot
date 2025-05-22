@@ -48,15 +48,12 @@ long getSmoothedDistance() {
 
 void stopMotors() {
   // Stub: replace with your actual motor stop commands
-  Serial.println("Motors stopped.");
+  setTargetSpeedRad(0, 0);
   motorsStopped = true;
 }
 
-void resumeMotors() {
-  // Stub: replace with your actual motor resume commands
-  Serial.println("Motors resumed.");
-  motorsStopped = false;
-}
+
+void setTargetSpeedRad(float s1, float s2); // Link to actual balance code motor control
 
 void loop() {
   long distance = getSmoothedDistance();
@@ -71,11 +68,7 @@ void loop() {
       if (!motorsStopped) {
         stopMotors();
       }
-    } else {
-      if (motorsStopped) {
-        resumeMotors();
-      }
-    }
+    } 
   }
   delay(200);
 }
