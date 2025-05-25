@@ -1,9 +1,38 @@
 #include <Arduino.h>
-#include <SPI.h>
 #include <TimerInterrupt_Generic.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <step.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <HardwareSerial.h>
+bool isTurning=true;
+bool turned = false;
+// Power monitoring constants
+#define SAMPLES 64 // Multisampling
+#define CELLS 12 // Battery cells
+
+const int bufferSize = 32; // Set buffer size to 32 bytes
+
+static unsigned long printTimer = 0;       //time of the next print
+  static unsigned long loopTimer = 0;        //time of the next control update
+  static float AccelAngle = 0;
+  static float SpinAngle = 0;                //current tilt angle
+  static float GyroAngle = 0;                //rate of change of tilt angle 
+  static float current = 0;
+  static float Turndrive = 0;
+  static float currentspeed = 0;
+  static float WheelPos = 0;
+  static float CurrentXDistance, PrevXDistance, CurrentYDistance, PrevYDistance = 0;
+  //Errors
+  static float prev, prevspeed, prevspin;
+  static float error, speederror, turnerror; 
+  static float preverror, prevspeederror, prevturnerror;    
+  //PID Gains 
+  static float P, D, I, Ps, Ds, Is, Pt, Dt, It;
+  //Components
+  static float GyroComp, AccelComp, SpinComp; 
+  
 
 // The Stepper pins
 const int STEPPER1_DIR_PIN  = 16;
@@ -21,23 +50,44 @@ const int ADC_MOSI_PIN      = 23;
 // Diagnostic pin for oscilloscope
 const int TOGGLE_PIN        = 32;
 
-const int PRINT_INTERVAL    = 500;
-const int LOOP_INTERVAL     = 20;
-const int STEPPER_INTERVAL_US = 20;
+const int PRINT_INTERVAL = 200;
+const int LOOP_INTERVAL = 5;
+const int  STEPPER_INTERVAL_US = 20;
+char currentOperation='S';
 
-const float kx = 20.0;
-const float VREF = 4.096;
+//PID values
+const float kp = 2000;
+const float kd = 55;
+const float ki = 5;
+
+const float sp = 0.002;
+const float sd = 0;
+const float si = 0;
+
+const float tp = 10;
+const float td = 8;
+const float ti = 0;
+
+//time const
+const float c = 0.98;
+
+//static
+float setpoint;// = 0.0135;
+float setspeed = 0;
+float setturn = 0;
+float xdistance = 0;  //1m = 2000
+float ydistance = 0;
 
 //Global objects
 ESP32Timer ITimer(3);
-Adafruit_MPU6050 mpu;         //Default pins for I2C are SCL: IO22, SDA: IO21
+Adafruit_MPU6050 mpu;         //Default pins for I2C are SCL: IO22/Arduino D3, SDA: IO21/Arduino D4
 
-step step1(STEPPER_INTERVAL_US,STEPPER1_STEP_PIN,STEPPER1_DIR_PIN );  // of class step, object step1, inputs are from pins 
+step step1(STEPPER_INTERVAL_US,STEPPER1_STEP_PIN,STEPPER1_DIR_PIN );
 step step2(STEPPER_INTERVAL_US,STEPPER2_STEP_PIN,STEPPER2_DIR_PIN );
-
 
 //Interrupt Service Routine for motor update
 //Note: ESP32 doesn't support floating point calculations in an ISR
+
 bool TimerHandler(void * timerNo)
 {
   static bool toggle = false;
@@ -49,28 +99,12 @@ bool TimerHandler(void * timerNo)
   //Indicate that the ISR is running
   digitalWrite(TOGGLE_PIN,toggle);  
   toggle = !toggle;
-	return true;
+  return true;
 }
-
-uint16_t readADC(uint8_t channel) {
-  uint8_t TXByte0 = 0x06 | (channel >> 2);  // Command Byte 0 = Start bit + single-ended mode + MSB of channel
-  uint8_t TXByte1 = (channel & 0x03) << 6;  // Command Byte 1 = Remaining 2 bits of channel
-
-  digitalWrite(ADC_CS_PIN, LOW); 
-
-  SPI.transfer(TXByte0);                    // Send Command Byte 0
-  uint8_t RXByte0 = SPI.transfer(TXByte1);      // Send Command Byte 1 and receive high byte of result
-  uint8_t RXByte1 = SPI.transfer(0x00);     // Send dummy byte and receive low byte of result
-
-  digitalWrite(ADC_CS_PIN, HIGH); 
-
-  uint16_t result = ((RXByte0 & 0x0F) << 8) | RX1; // Combine high and low byte into 12-bit result
-  return result;
-}
-
 
 void setup()
 {
+  const int bufferSize = 32; // Set buffer size to 32 bytes
   Serial.begin(115200);
   pinMode(TOGGLE_PIN,OUTPUT);
 
@@ -94,127 +128,214 @@ void setup()
     }
   Serial.println("Initialised Interrupt for Stepper");
 
-  //Set motor acceleration values
-  step1.setAccelerationRad(15.0);             // Could potentially be changed for better acceleration? Maybe making it higher would make the robot accelerate faster? 
-  step2.setAccelerationRad(15.0);
-
-  step1.setTargetSpeedRad(0);                 // Can it be used in the loop to set target speed for each iteration? could be useful for controlling the robot? 
-  step2.setTargetSpeedRad(0);
-
   //Enable the stepper motor drivers
   pinMode(STEPPER_EN_PIN,OUTPUT);
   digitalWrite(STEPPER_EN_PIN, false);
-
-  //Set up ADC and SPI
-  pinMode(ADC_CS_PIN, OUTPUT);
-  digitalWrite(ADC_CS_PIN, HIGH);
-  SPI.begin(ADC_SCK_PIN, ADC_MISO_PIN, ADC_MOSI_PIN, ADC_CS_PIN);
 }
 
-
-
-void loop(){
-    // outer
-    static float Kp_outer = 15.0;           // If the Kp for the inner loop is higher this might need to be a lot higher as well? 
-    static float Ki_outer = 4.0;
-    static float Kd_outer = 0.0;
-    static float integral_outer = 0.0; 
-    static float error_outer = 0.0;
-
-    // Inner loop
-    static float Kp_inner = 40.0;             // Raise to like 10,000
-    static float Ki_inner = 40.0;
-    static float Kd_inner = 60.0;
-    static float integral_inner = 0.0;
-    static float error_inner = 0.0;  
-
-    static float c = 0.96;                  // This c seems to be doing fine in equilibrium for now, might need experimentation
-
-    static unsigned long previous_time = millis();
-    static unsigned long printTimer = 0;
-    static unsigned long loopTimer = 0;
-    static float reference = 0.0;
-
-    static float theta_n = 0.000;
-    // static float integral = 0.0;
-    static float uoutput = 0.0;
-
-    static float tilt_angle_x = 0.0;
-    static float tilt_angle_y = 0.0;
-    static float tilt_angle_z = 0.0;  
-    static float gyro_x = 0.0;  
-    static float gyro_y = 0.0;  
-    static float gyro_z = 0.0;  
-
-    static float current_speed;
-    static float target_speed = 0.0; 
-            
-    if (millis() > loopTimer){
-        loopTimer += LOOP_INTERVAL;
-        //complementary function
-
-        sensors_event_t a, g, temp;
-        mpu.getEvent(&a, &g, &temp);
-
-        tilt_angle_x = a.acceleration.x/9.67; //accelerometer           This calculation might need to be changed
-        tilt_angle_y = a.acceleration.y/9.67;   
-        tilt_angle_z = a.acceleration.z/9.67; 
-        //tilt_angle = atan2(a.acceleration.x, a.acceleration.z) - 2.1;
-        gyro_x = g.gyro.x;          //gyroscope       
-        gyro_y = g.gyro.y;      
-        gyro_z = g.gyro.z;  
-
-        unsigned long current_time = millis();
-        float dt = (current_time - previous_time)/1000;               
-        previous_time = current_time;
-        theta_n = (1-c)*tilt_angle_z + c*(gyro_y*dt+theta_n);  
-
-        //  Outer loop
-        float speed1 = step1.getSpeed();                                // what exactly is this measuring? and how accurate is it? 
-        float speed2 = step2.getSpeed();                                // Probably both of these are getSpeedRad();
-        current_speed = (step1.getSpeed() - step2.getSpeed()) / 2.0; 
-        error_outer = target_speed - current_speed;                     // Outer loop measure and set the difference between desired speed and current speed. 
-        integral_outer += error_outer * dt;
-        float derivative_outer = 0; // Add later    
-        // Wanted setpoint
-        // float reference = 0.026;  
-        reference = Kp_outer * error_outer + Ki_outer * integral_outer + Kd_outer * derivative_outer;         // Get a reference angle based on the error. This line will probably need to be modified. To convert to angle
-        
-        // Inner loop
-        error_inner = reference - theta_n;            // inner error, the difference between the desired angle and the current angle
-
-        float derivative_inner = -gyro_y;
-        integral_inner += error_inner * dt;
-
-        uoutput = Kp_inner * error_inner + Ki_inner * integral_inner + Kd_inner * derivative_inner;         // same as before
-
-        step1.setTargetSpeedRad(uoutput);                   // maybe different input to function needed 
-        step2.setTargetSpeedRad(-uoutput);
-    }
-
-    if (millis() > printTimer){
-        printTimer += PRINT_INTERVAL;
-        Serial.print("Reference: ");
-        Serial.print(reference);
-        Serial.print(" | error Inner: ");
-        Serial.print(error_inner);
-        Serial.print(" | speed: ");
-        Serial.print(current_speed);
-        Serial.println();
-    }
+//Autonomous control function
+void setco(){
+  /*  if((CurrentXDistance < xdistance) && (SpinComp > setturn) - 0.05 && (SpinComp < setturn + 0.05)){      
+    setspeed = -13;
+    CurrentXDistance = (WheelPos/200)*6.5 + PrevXDistance;
+    PrevXDistance = CurrentXDistance;
+  }
+  //if arrived at x coordinate
+  else{
+    setspeed = 0;
+    xdistance = 0;
+  //If there is a y coordinate, turn to face it, else do noting 
+  if((ydistance < 0) && !turned){
+    setturn = setturn + 1.57;
+    turned = true;
+  }
+  else if((ydistance > 0) && !turned){
+    setturn = setturn - 1.57;
+    turned = true;
+  }
+  else if (ydistance == 0){
+    setspeed = 0;
+  }
+  //Go to y position
+  if((abs(CurrentYDistance) < abs(ydistance)) && (SpinComp > setturn - 0.05) && (SpinComp < setturn + 0.05)){      
+    setspeed = -13; 
+    CurrentYDistance = (WheelPos/200)*6.5 + PrevYDistance;
+    PrevYDistance = CurrentYDistance;
+  }
+ //Arrived at y location
+  else if(abs(CurrentYDistance) >= abs(ydistance)){                      
+    setspeed = 0;
+    ydistance = 0;
+    turned = false;
+  }
+  }*/
 }
 
+void loop()
+{
+  //static float i = 0;
+  //Run the control loop every LOOP_INTERVAL ms
+  if (millis() > loopTimer) {
+    loopTimer += LOOP_INTERVAL;
 
-        // Serial.print("gyro_x: ");
-        // Serial.print(gyro_x);
-        // Serial.print(" | gyro_y: ");
-        // Serial.print(gyro_y);
-        // Serial.print(" | gyro_z: ");
-        // Serial.print(gyro_z);
-        // Serial.println();
-        // Serial.print(tilt_angle_z, 4);
-        // Serial.print(' ');
-        // Serial.print(theta_n, 4);
-        // Serial.print(' ');
-        // Serial.print(error, 4);
-        // Serial.print(uoutput);
+    // Fetch data from MPU6050
+    sensors_event_t a, g, temp;
+    mpu.getEvent(&a, &g, &temp);
+
+    //Calculate accelerometer Tilt using sin x = x approximation for a small tilt angle and measure gyroscope tilt
+    AccelAngle = (a.acceleration.z/9.67) - 0.017;   // was - 0.037 
+    SpinAngle = (g.gyro.roll) + 0.0721;
+    GyroAngle = (g.gyro.pitch);
+
+  setco();
+  WheelPos = step1.getPosition();
+
+//Speed Control
+    currentspeed = step1.getSpeedRad();
+    speederror = setspeed - currentspeed;
+    prevspeederror = setspeed - prevspeederror;
+    Ps = speederror*sp;
+    Ds = -((speederror-prevspeederror)/0.005)*sd;
+    Is = (speederror+prevspeederror)*si*0.005;
+
+    setpoint = Ps + Ds + Is - 0.004;
+
+//Balance control
+
+    //complementary sensitivity filter
+    current = (1 - c)*(AccelAngle) + c*((GyroAngle - 0.02) *0.005 + prev);       // Theta_n = current  also removed the 0.4 GyroAngle+0.4
+    // AccelComp = (AccelAngle+0.3);                                             // not Used
+    // GyroComp = ((GyroAngle+0.4) *0.005 + prev);
+
+    //Turning angle
+    SpinComp = (SpinAngle) * 0.005 + prevspin;      // - 1.00
+     
+    //errors
+    turnerror = setturn - SpinComp;
+    error = setpoint - current;
+    preverror = setpoint - prev;      
+    prevturnerror = setturn - prevspin;
+
+
+    //Balance controller
+    P = error*kp;
+    D = -((error-preverror)/0.005)*kd;
+    I = (error+preverror)*ki*0.005;
+
+    prev = P + D + I;
+
+    //Turn controller
+    Pt = turnerror*tp;
+    Dt = ((turnerror-prevturnerror)/0.005)*td;
+    It = (turnerror+prevturnerror)*ti*0.005;
+
+    Turndrive = Pt + Dt + It;
+
+  //Change acceleration according to PID output
+  if((current < 0.02) && (current > -0.02)){ 
+  step1.setAccelerationRad(-prev - Turndrive);
+  step2.setAccelerationRad( prev - Turndrive);
+  }
+
+  else{
+  step1.setAccelerationRad(-prev);
+  step2.setAccelerationRad( prev);
+  }
+ 
+  //Keep target speed constant depending on the sign of the PID output
+  if(prev>0){ 
+   step1.setTargetSpeedRad( 15);          // Changed from 20 to 5
+   step2.setTargetSpeedRad(-15);          // Also flipped signs between step1 and step2 
+  }
+
+  else{
+   step1.setTargetSpeedRad(-15);
+   step2.setTargetSpeedRad( 15);
+  }
+  
+ 
+  //Feedback
+  prev = current;
+  prevspeed = currentspeed;
+  // prevspin = SpinComp;
+
+  }
+  
+  //Print updates every PRINT_INTERVAL ms
+  
+  if (millis() > printTimer) {
+    printTimer += PRINT_INTERVAL;
+    Serial.print("Spin Comp: ");
+    Serial.print(SpinComp, 4);
+    Serial.print(" SpinAngle: ");
+    Serial.print(SpinAngle, 4);
+    Serial.print(" turnerror: ");
+    Serial.print(turnerror, 4);
+    Serial.print(" AccelAngle: ");
+    Serial.print(AccelAngle, 4);
+    Serial.println();
+  }
+  
+
+
+ if (Serial.available()>0) {
+    char incomingByte = Serial.read();
+    currentOperation=incomingByte;
+    Serial.print(incomingByte);
+
+  }
+ switch  (currentOperation) {
+      case 'F':
+        isTurning=false;
+        //Serial.println("Forward");
+        setspeed =-17;
+        break;
+      case 'R':
+        isTurning=false;
+        //REVERSE
+        //Serial.println("Reverse");
+        setspeed=13;
+        break;
+      case 'C':
+        //CLOCKWISE
+        //Serial.println("Clockwise");
+        if (!isTurning)
+        {
+          setturn = setturn + 1.57;
+        }
+        isTurning=true;
+        break;
+      case 'A':
+        //ANTICLOCKWISE
+        //Serial.println("Anti-Clockwise");
+        if (!isTurning)
+        {
+          setturn = setturn - 1.57;
+        }
+        isTurning=true;
+        break;
+      case 'S':
+        //moving=false;
+        isTurning=false;
+        //STOP
+        setspeed=0;
+        //Serial.println("Stop");
+        break;
+     case 'X':
+        int x = 0;
+        char position[50];
+        position[0]='X';
+        while(Serial.available()){
+          x++;
+          position[x]=Serial.read();
+        }
+        const char* posX = strchr(position, 'X');
+        const char* posY = strchr(position, 'Y');
+        // Extract the substring after 'X' and convert to integer
+        xdistance = atoi(posX + 1);
+        // Extract the substring after 'Y' and convert to integer
+        ydistance = atoi(posY + 1);
+        setco();
+        break;
+    } 
+}

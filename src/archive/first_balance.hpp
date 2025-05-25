@@ -128,6 +128,8 @@ void loop(){
     static float gyro_y = 0.0;  
     static float gyro_z = 0.0;  
     static float error = 0.0;  
+    float speed1 = 0;                                // what exactly is this measuring? and how accurate is it? 
+    float speed2 = 0;   
             
     if (millis() > loopTimer){
         loopTimer += LOOP_INTERVAL;
@@ -143,6 +145,10 @@ void loop(){
         gyro_x = g.gyro.x;          //gyroscope        // Y angle?
         gyro_y = g.gyro.y;      
         gyro_z = g.gyro.z;  
+
+
+        speed1 = step1.getSpeedRad();                                // what exactly is this measuring? and how accurate is it? 
+        speed2 = step2.getSpeedRad(); 
 
         // if(tilt_angle_z < 0.1 || tilt_angle_z)
         unsigned long current_time = millis();
@@ -174,11 +180,15 @@ void loop(){
         // Serial.print(" | gyro_z: ");
         // Serial.print(gyro_z);
         // Serial.println();
-        Serial.print(tilt_angle_z, 4);
-        Serial.print(' ');
-        Serial.print(theta_n, 4);
-        Serial.print(' ');
-        Serial.print(error, 4);
+        Serial.print("Speed1: ");
+        Serial.print(speed1);
+        Serial.print(" | Speed2: ");
+        Serial.print(speed2);
+        // Serial.print(tilt_angle_z, 4);
+        // Serial.print(' ');
+        // Serial.print(theta_n, 4);
+        // Serial.print(' ');
+        // Serial.print(error, 4);
         // Serial.print(uoutput);
         Serial.println();
     }

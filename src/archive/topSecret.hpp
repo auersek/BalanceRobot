@@ -35,20 +35,14 @@ static unsigned long printTimer = 0;       //time of the next print
   
 
 // The Stepper pins
-const int STEPPER1_DIR_PIN  = 16;
-const int STEPPER1_STEP_PIN = 17;
-const int STEPPER2_DIR_PIN  = 4;
-const int STEPPER2_STEP_PIN = 14;
-const int STEPPER_EN_PIN    = 15; 
-
-//ADC pins
-const int ADC_CS_PIN        = 5;
-const int ADC_SCK_PIN       = 18;
-const int ADC_MISO_PIN      = 19;
-const int ADC_MOSI_PIN      = 23;
+#define STEPPER1_DIR_PIN 16   //Arduino D9
+#define STEPPER1_STEP_PIN 17  //Arduino D8
+#define STEPPER2_DIR_PIN 4    //Arduino D11
+#define STEPPER2_STEP_PIN 14  //Arduino D10
+#define STEPPER_EN 15         //Arduino D12
 
 // Diagnostic pin for oscilloscope
-const int TOGGLE_PIN        = 32;
+#define TOGGLE_PIN  32        //Arduino A4
 
 const int PRINT_INTERVAL = 200;
 const int LOOP_INTERVAL = 5;
@@ -77,6 +71,8 @@ float setspeed = 0;
 float setturn = 0;
 float xdistance = 0;  //1m = 2000
 float ydistance = 0;
+
+
 
 //Global objects
 ESP32Timer ITimer(3);
@@ -128,40 +124,51 @@ void setup()
     }
   Serial.println("Initialised Interrupt for Stepper");
 
+
+
   //Enable the stepper motor drivers
-  pinMode(STEPPER_EN_PIN,OUTPUT);
-  digitalWrite(STEPPER_EN_PIN, false);
+  pinMode(STEPPER_EN,OUTPUT);
+  digitalWrite(STEPPER_EN, false);
 }
 
 //Autonomous control function
 void setco(){
+
   /*  if((CurrentXDistance < xdistance) && (SpinComp > setturn) - 0.05 && (SpinComp < setturn + 0.05)){      
     setspeed = -13;
     CurrentXDistance = (WheelPos/200)*6.5 + PrevXDistance;
     PrevXDistance = CurrentXDistance;
   }
+  
   //if arrived at x coordinate
   else{
     setspeed = 0;
     xdistance = 0;
+  
+
   //If there is a y coordinate, turn to face it, else do noting 
   if((ydistance < 0) && !turned){
     setturn = setturn + 1.57;
     turned = true;
   }
+
   else if((ydistance > 0) && !turned){
     setturn = setturn - 1.57;
     turned = true;
   }
+
   else if (ydistance == 0){
     setspeed = 0;
+    
   }
+
   //Go to y position
   if((abs(CurrentYDistance) < abs(ydistance)) && (SpinComp > setturn - 0.05) && (SpinComp < setturn + 0.05)){      
     setspeed = -13; 
     CurrentYDistance = (WheelPos/200)*6.5 + PrevYDistance;
     PrevYDistance = CurrentYDistance;
   }
+
  //Arrived at y location
   else if(abs(CurrentYDistance) >= abs(ydistance)){                      
     setspeed = 0;
@@ -187,25 +194,30 @@ void loop()
     SpinAngle = (g.gyro.roll);
     GyroAngle = (g.gyro.pitch);
 
-  setco();
-  WheelPos = step1.getPosition();
+setco();
+WheelPos = step1.getPosition();
 
 //Speed Control
     currentspeed = step1.getSpeedRad();
+
     speederror = setspeed - currentspeed;
     prevspeederror = setspeed - prevspeederror;
+
     Ps = speederror*sp;
     Ds = -((speederror-prevspeederror)/0.005)*sd;
     Is = (speederror+prevspeederror)*si*0.005;
 
     setpoint = Ps + Ds + Is - 0.004;
 
+    
+
+
 //Balance control
 
     //complementary sensitivity filter
-    current = (1 - c)*(AccelAngle) + c*((GyroAngle+0.4) *0.005 + prev);       // Theta_n = current
-    // AccelComp = (AccelAngle+0.3);                                             // not Used
-    // GyroComp = ((GyroAngle+0.4) *0.005 + prev);
+    current = (1 - c)*(AccelAngle) + c*((GyroAngle+0.4) *0.005 + prev);
+    AccelComp = (AccelAngle+0.3);
+    GyroComp = ((GyroAngle+0.4) *0.005 + prev);
 
     //Turning angle
     SpinComp = (SpinAngle - 1.005) *0.005 + prevspin;
@@ -216,6 +228,7 @@ void loop()
     preverror = setpoint - prev;
     prevturnerror = setturn - prevspin;
 
+    
 
     //Balance controller
     P = error*kp;
@@ -259,15 +272,17 @@ void loop()
   prevspeed = currentspeed;
   prevspin = SpinComp;
 
+
+    
   }
   
   //Print updates every PRINT_INTERVAL ms
   
   if (millis() > printTimer) {
     printTimer += PRINT_INTERVAL;
-    Serial.print("AccelAngle");
+    Serial.print("TurnDrive");
     Serial.print(" ");
-    Serial.print(AccelAngle);
+    Serial.print(Turndrive);
     Serial.print(' ');
     Serial.print("Roll");
     Serial.print(' ');

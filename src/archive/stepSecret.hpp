@@ -4,14 +4,14 @@ class step {
 
 public:
 
-    const int MAX_SPEED = 10000;    //Maximum motor speed (steps/s)
-    const int MAX_SPEED_INTERVAL_US = 1000; //Maximum interval between speed updates (μs)
-    const int SPEED_SCALE = 2000;   //Integer speed units are in steps per SPEED_SCALE seconds
-    const int MICROSTEPS = 16;      //Number of microsteps per physical step
-    const int STEPS = 200;          //Number of physical steps per revolution
+    const int MAX_SPEED = 10000;                //Maximum motor speed (steps/s)
+    const int MAX_SPEED_INTERVAL_US = 1000;     //Maximum interval between speed updates (μs)           // MAYBE REDUCE THIS FOR better motor reaction
+    const int SPEED_SCALE = 2000;               //Integer speed units are in steps per SPEED_SCALE seconds
+    const int MICROSTEPS = 16;                  //Number of microsteps per physical step
+    const int STEPS = 200;                      //Number of physical steps per revolution
     const float STEP_ANGLE = (2.0 * PI)/(STEPS * MICROSTEPS);   //Angle per microstep (rad)
-    int32_t accel = 0;          //current acceleration (steps/s)
-    int32_t tSpeed = 0;         //current speed (steps/(SPEED_SCALE * s))
+    int32_t accel = 0;                          //current acceleration (steps/s)
+    int32_t tSpeed = 0;                         //current speed (steps/(SPEED_SCALE * s))
 
     //Initialise the stepper with interval and pin numbers
     step(int i, int8_t sp, int8_t dp) : interval(i), stepPin(sp), dirPin(dp) {
@@ -47,17 +47,9 @@ public:
                 //Set step direction for next step
                 digitalWrite(dirPin, speed > 0);
 
-                //Increment/decrement position counter 
-                if (0 <= position && position <= 200 ){
-                  position += (speed > 0) ? 1 : -1;
-                }
-                else if(position < 0){
-                  position = position + 201;
-                }
-                else{
-                  position = position - 201;
-                }
-    
+                //Increment/decrement position counter
+                position += (speed > 0) ? 1 : -1;
+
                 //End pulse
                 digitalWrite(stepPin, LOW);
             }
@@ -116,7 +108,7 @@ public:
     private:
 
     int32_t stepTimer = 0;      //time since last step (μs)
-    int32_t speedTimer = 0;     //time since last speed update (μs)
+    int32_t speedTimer = 0;     //time since last speed update (μs)          // MIGHT NEED TO LOWER THE MAX BOUND FOR THIS
     int32_t step_period = 0;    //current time between steps (μs)
     int32_t position = 0;       //current accumulated steps (steps)
     int8_t stepPin;             //output pin number for step
@@ -162,5 +154,6 @@ public:
     }
 
 };
+
 
 
