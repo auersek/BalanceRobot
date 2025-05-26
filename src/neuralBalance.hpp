@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <HardwareSerial.h>
+#include "nn_weights.h"
+
 bool isTurningAnti=true;
 bool isTurningClock=true;
 bool turned = false;
@@ -103,6 +105,32 @@ bool TimerHandler(void * timerNo)
   return true;
 }
 
+float relu(float x) {
+  return x > 0 ? x : 0;
+}
+
+void runNeuralNetwork(float input[5], float output[2]) {
+  float hidden[10];
+  // First layer (input -> hidden)
+  for (int i = 0; i < 10; i++) {
+    hidden[i] = Bias0[i];
+    for (int j = 0; j < 5; j++) {
+      hidden[i] += W0[i][j] * input[j];
+    }
+    hidden[i] = relu(hidden[i]);  // Activation
+  }
+
+  // Second layer (hidden -> output)
+  for (int i = 0; i < 2; i++) {
+    output[i] = Bias1[i];
+    for (int j = 0; j < 10; j++) {
+      output[i] += W1[i][j] * hidden[j];
+    }
+    // Optional: Apply activation if needed (e.g., relu or tanh)
+    // output[i] = relu(output[i]);
+  }
+}
+
 void setup()
 {
   const int bufferSize = 32; // Set buffer size to 32 bytes
@@ -134,43 +162,6 @@ void setup()
   digitalWrite(STEPPER_EN_PIN, false);
 }
 
-//Autonomous control function
-void setco(){
-  /*  if((CurrentXDistance < xdistance) && (SpinComp > setturn) - 0.05 && (SpinComp < setturn + 0.05)){      
-    setspeed = -13;
-    CurrentXDistance = (WheelPos/200)*6.5 + PrevXDistance;
-    PrevXDistance = CurrentXDistance;
-  }
-  //if arrived at x coordinate
-  else{
-    setspeed = 0;
-    xdistance = 0;
-  //If there is a y coordinate, turn to face it, else do noting 
-  if((ydistance < 0) && !turned){
-    setturn = setturn + 1.57;
-    turned = true;
-  }
-  else if((ydistance > 0) && !turned){
-    setturn = setturn - 1.57;
-    turned = true;
-  }
-  else if (ydistance == 0){
-    setspeed = 0;
-  }
-  //Go to y position
-  if((abs(CurrentYDistance) < abs(ydistance)) && (SpinComp > setturn - 0.05) && (SpinComp < setturn + 0.05)){      
-    setspeed = -13; 
-    CurrentYDistance = (WheelPos/200)*6.5 + PrevYDistance;
-    PrevYDistance = CurrentYDistance;
-  }
- //Arrived at y location
-  else if(abs(CurrentYDistance) >= abs(ydistance)){                      
-    setspeed = 0;
-    ydistance = 0;
-    turned = false;
-  }
-  }*/
-}
 
 void loop()
 {
@@ -184,12 +175,11 @@ void loop()
     mpu.getEvent(&a, &g, &temp);
 
     //Calculate accelerometer Tilt using sin x = x approximation for a small tilt angle and measure gyroscope tilt
-    AccelAngle = (a.acceleration.z/9.67) - 0.036;   // was - 0.037 
-    SpinAngle = (g.gyro.roll) + 0.001;     // on other robot + 0.0721
+    AccelAngle = (a.acceleration.z/9.67) - 0.016;   // was - 0.037 
+    SpinAngle = (g.gyro.roll) + 0.0721;
     GyroAngle = (g.gyro.pitch);
 
-  setco();
-  WheelPos = step1.getPosition();
+    WheelPos = step1.getPosition();
 
 //Speed Control
     currentspeed = step1.getSpeedRad();
@@ -232,32 +222,45 @@ void loop()
 
     Turndrive = Pt + Dt + It;
 
-  //Change acceleration according to PID output
-  if((current < 0.02) && (current > -0.02)){ 
-  step1.setAccelerationRad(-prev - Turndrive);
-  step2.setAccelerationRad( prev - Turndrive);
-  }
+    float nn_input[5] = {
+      AccelAngle,
+      GyroAngle,
+      SpinAngle,
+      currentspeed,
+      SpinComp
+    };
 
-  else{
-  step1.setAccelerationRad(-prev);
-  step2.setAccelerationRad( prev);
-  }
+    float nn_output[2];
+
+    runNeuralNetwork(nn_input, nn_output);
+
+    float output1 = nn_output[0];
+    float output2 = nn_output[1];
+
+    // Set accelerations based on NN output
+    if ((current < 0.02) && (current > -0.02)) { 
+      step1.setAccelerationRad(-output1);
+      step2.setAccelerationRad( output1);
+    } else {
+      step1.setAccelerationRad(-output1);
+      step2.setAccelerationRad( output1);
+    }
  
-  //Keep target speed constant depending on the sign of the PID output
-  if(prev>0){ 
-   step1.setTargetSpeedRad( 15);          // Changed from 20 to 5
-   step2.setTargetSpeedRad(-15);          // Also flipped signs between step1 and step2 
-  }
+    //Keep target speed constant depending on the sign of the PID output
+    if(prev>0){ 
+    step1.setTargetSpeedRad( 15);          // Changed from 20 to 5
+    step2.setTargetSpeedRad(-15);          // Also flipped signs between step1 and step2 
+    }
 
-  else{
-   step1.setTargetSpeedRad(-15);
-   step2.setTargetSpeedRad( 15);
-  }
+    else{
+    step1.setTargetSpeedRad(-15);
+    step2.setTargetSpeedRad( 15);
+    }
   
-  //Feedback
-  prev = current;
-  prevspeed = currentspeed;
-  prevspin = SpinComp;
+    //Feedback
+    prev = current;
+    prevspeed = currentspeed;
+    prevspin = SpinComp;
 
   }
   
@@ -265,14 +268,14 @@ void loop()
   
   if (millis() > printTimer) {
     printTimer += PRINT_INTERVAL;
-    Serial.print(AccelAngle, 4); Serial.print(",");
-    Serial.print(GyroAngle, 4); Serial.print(",");
-    Serial.print(SpinAngle, 4); Serial.print(",");
-    Serial.print(currentspeed, 4); Serial.print(",");
-    // Serial.print(SpinComp); Serial.print(",");
-    // Serial.print(prev); Serial.print(",");
-    Serial.println(prev - Turndrive, 4); 
-    // Serial.println();
+  Serial.print(AccelAngle); Serial.print(",");
+  Serial.print(GyroAngle); Serial.print(",");
+  Serial.print(SpinAngle); Serial.print(",");
+  Serial.print(currentspeed); Serial.print(",");
+  Serial.print(SpinComp); Serial.print(",");
+  Serial.print(prev); Serial.print(",");
+  Serial.println(prev - Turndrive); 
+  // Serial.println();
   }
 
 
