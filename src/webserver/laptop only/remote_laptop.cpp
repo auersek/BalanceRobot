@@ -14,13 +14,13 @@ int main() {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     sockaddr_in serv{};
     serv.sin_family = AF_INET;
-    serv.sin_port = htons(8000);
-    inet_pton(AF_INET, "172.26.65.28", &serv.sin_addr); //172.26.65.28 or 172.26.224.15
+    serv.sin_port   = htons(8000);
+    inet_pton(AF_INET, "172.26.224.15", &serv.sin_addr); 
     if (connect(sock, (sockaddr*)&serv, sizeof(serv)) < 0) {
         perror("connect");
         return 1;
     }
-    std::cout << "[Client] Connected to localhost:8000\n";
+    std::cout << "[Client] Connected to 172.26.224.15:8000\n";
 
     // 2) Raw terminal for single keystrokes
     termios oldt, newt;
@@ -29,14 +29,40 @@ int main() {
     newt.c_lflag &= ~(ICANON | ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 
-    std::cout << "Press F/R/C/A/S (Q to quit):\n";
+    std::cout << "Press F/R/C/A/S to drive, X to send coordinates, Q to quit.\n";
+
     char ch;
     while (read(STDIN_FILENO, &ch, 1) > 0) {
         if (ch=='Q' || ch=='q') break;
+
+        // Simple movement commands
         if (ch=='f'||ch=='r'||ch=='c'||ch=='a'||ch=='s') {
-            char buf[2] = { ch, '\n' };
+            char buf[3] = { static_cast<char>(tolower(ch)), '\n', '\0' };
             send(sock, buf, 2, 0);
-            std::cout << "[Client] Sent: " << ch << "\n";
+            std::cout << "[Client] Sent: " << buf[0] << "\n";
+        }
+        // Coordinate command
+        else if (ch=='x' || ch=='X') {
+            // Prompt the user
+            std::cout << "Enter X coordinate (integer): ";
+            int xval, yval;
+            std::cin >> xval;
+            std::cout << "Enter Y coordinate (integer): ";
+            std::cin >> yval;
+
+            // Format as X<num>Y<num>\n
+            char coordBuf[64];
+            int len = snprintf(coordBuf, sizeof(coordBuf),
+                               "X%dY%d\n", xval, yval);
+            if (len > 0 && len < (int)sizeof(coordBuf)) {
+                send(sock, coordBuf, len, 0);
+                std::cout << "[Client] Sent: " << coordBuf;
+            } else {
+                std::cerr << "Error formatting coordinate string\n";
+            }
+
+            // Clear the '\n' left in stdin after reading yval
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
         }
     }
 
