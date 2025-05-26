@@ -16,24 +16,24 @@ bool turned = false;
 const int bufferSize = 32; // Set buffer size to 32 bytes
 
 static unsigned long printTimer = 0;       //time of the next print
-  static unsigned long loopTimer = 0;        //time of the next control update
-  static float AccelAngle = 0;
-  static float SpinAngle = 0;                //current tilt angle
-  static float GyroAngle = 0;                //rate of change of tilt angle 
-  static float current = 0;
-  static float Turndrive = 0;
-  static float currentspeed = 0;
-  static float WheelPos = 0;
-  static float CurrentXDistance, PrevXDistance, CurrentYDistance, PrevYDistance = 0;
-  //Errors
-  static float prev, prevspeed, prevspin;
-  static float error, speederror, turnerror; 
-  static float preverror, prevspeederror, prevturnerror;    
-  //PID Gains 
-  static float P, D, I, Ps, Ds, Is, Pt, Dt, It;
-  //Components
-  static float GyroComp, AccelComp, SpinComp; 
-  
+static unsigned long loopTimer = 0;        //time of the next control update
+static float AccelAngle = 0;
+static float SpinAngle = 0;                //current tilt angle
+static float GyroAngle = 0;                //rate of change of tilt angle 
+static float current = 0;
+static float Turndrive = 0;
+static float currentspeed = 0;
+static float WheelPos = 0;
+static float CurrentXDistance, PrevXDistance, CurrentYDistance, PrevYDistance = 0;
+//Errors
+static float prev, prevspeed, prevspin;
+static float error, speederror, turnerror; 
+static float preverror, prevspeederror, prevturnerror;    
+//PID Gains 
+static float P, D, I, Ps, Ds, Is, Pt, Dt, It;
+//Components
+static float GyroComp, AccelComp, SpinComp; 
+
 
 // The Stepper pins
 const int STEPPER1_DIR_PIN  = 16;
@@ -58,7 +58,7 @@ char currentOperation='S';
 
 //PID values
 const float kp = 2000;
-const float kd = 65;
+const float kd = 60;
 const float ki = 5;
 
 const float sp = 0.002;
@@ -184,8 +184,8 @@ void loop()
     mpu.getEvent(&a, &g, &temp);
 
     //Calculate accelerometer Tilt using sin x = x approximation for a small tilt angle and measure gyroscope tilt
-    AccelAngle = (a.acceleration.z/9.67) - 0.036;   // was - 0.037 
-    SpinAngle = (g.gyro.roll) + 0.001;     // on other robot + 0.0721
+    AccelAngle = (a.acceleration.z/9.67) - 0.013;   // was - 0.037 
+    SpinAngle = (g.gyro.roll) + 0.022;     // on other robot + 0.0721
     GyroAngle = (g.gyro.pitch);
 
   setco();
@@ -269,10 +269,28 @@ void loop()
     Serial.print(GyroAngle, 4); Serial.print(",");
     Serial.print(SpinAngle, 4); Serial.print(",");
     Serial.print(currentspeed, 4); Serial.print(",");
-    // Serial.print(SpinComp); Serial.print(",");
-    // Serial.print(prev); Serial.print(",");
-    Serial.println(prev - Turndrive, 4); 
-    // Serial.println();
+    Serial.print(SpinComp,4); Serial.print(",");
+    Serial.print(prev,4); Serial.print(",");
+    Serial.print(prev - Turndrive, 4); Serial.print(",");
+    Serial.print(WheelPos, 4); Serial.print(",");
+    Serial.print(error, 4); Serial.print(",");
+    Serial.print(turnerror, 4); Serial.print(",");
+    if(currentOperation == 's'){
+      Serial.print(", 1, 0, 0, 0, 0"); 
+    }
+    else if(currentOperation == 'f'){
+      Serial.print(", 0, 1, 0, 0, 0"); 
+    }
+    else if(currentOperation == 'r'){
+      Serial.print(", 0, 0, 1, 0, 0"); 
+    }
+    else if(currentOperation == 'c'){
+      Serial.print(", 0, 0, 0, 1, 0"); 
+    }
+    else if(currentOperation == 'a'){
+      Serial.print(", 0, 0, 0, 0, 1"); 
+    }
+    Serial.println();
   }
 
 
@@ -291,7 +309,7 @@ void loop()
       isTurningAnti = false;
       break;
     case 'r': // Reverse
-      if (setspeed != 9) {
+      if (setspeed != 10) {
         // Serial.println("Reverse");
       }
       setspeed = 9;

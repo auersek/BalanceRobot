@@ -53,7 +53,7 @@ const int ADC_MOSI_PIN      = 23;
 // Diagnostic pin for oscilloscope
 const int TOGGLE_PIN        = 32;
 
-const int PRINT_INTERVAL = 200;       // in miliseconds
+const int PRINT_INTERVAL = 50;       // in miliseconds      changed from 200 to 50
 const int LOOP_INTERVAL = 5;
 const int  STEPPER_INTERVAL_US = 20;
 char currentOperation='S';
@@ -104,6 +104,14 @@ bool TimerHandler(void * timerNo)
   toggle = !toggle;
   return true;
 }
+
+enum OperationMode {
+  STOP = 0,       // 's'
+  FORWARD = 1,    // 'f'
+  REVERSE = 2,    // 'r'
+  CLOCKWISE = 3,  // 'c'
+  ANTICLOCKWISE = 4 // 'a'
+};
 
 float relu(float x) {
   return x > 0 ? x : 0;
@@ -160,6 +168,44 @@ void setup()
   //Enable the stepper motor drivers
   pinMode(STEPPER_EN_PIN,OUTPUT);
   digitalWrite(STEPPER_EN_PIN, false);
+}
+
+//Autonomous control function
+void setco(){
+  if((CurrentXDistance < xdistance) && (SpinComp > setturn) - 0.05 && (SpinComp < setturn + 0.05)){      
+    setspeed = -13;
+    CurrentXDistance = (WheelPos/200)*6.5 + PrevXDistance;
+    PrevXDistance = CurrentXDistance;
+  }
+  //if arrived at x coordinate
+  else{
+    setspeed = 0;
+    xdistance = 0;
+  //If there is a y coordinate, turn to face it, else do noting 
+  if((ydistance < 0) && !turned){
+    setturn = setturn + 1.57;
+    turned = true;
+  }
+  else if((ydistance > 0) && !turned){
+    setturn = setturn - 1.57;
+    turned = true;
+  }
+  else if (ydistance == 0){
+    setspeed = 0;
+  }
+  //Go to y position
+  if((abs(CurrentYDistance) < abs(ydistance)) && (SpinComp > setturn - 0.05) && (SpinComp < setturn + 0.05)){      
+    setspeed = -13; 
+    CurrentYDistance = (WheelPos/200)*6.5 + PrevYDistance;
+    PrevYDistance = CurrentYDistance;
+  }
+ //Arrived at y location
+  else if(abs(CurrentYDistance) >= abs(ydistance)){                      
+    setspeed = 0;
+    ydistance = 0;
+    turned = false;
+  }
+  }
 }
 
 
@@ -222,21 +268,33 @@ void loop()
 
     Turndrive = Pt + Dt + It;
 
-    float nn_input[5] = {
-      AccelAngle,
-      GyroAngle,
-      SpinAngle,
-      currentspeed,
-      SpinComp
+    float nn_input[8] = {
+    AccelAngle,     // 
+    GyroAngle,      //
+    SpinAngle,
+    currentspeed,
+    SpinComp,
+    WheelPos,       // or xdistance
+    error,          // balance control error
+    turnerror       // turn completion status
     };
 
-    float nn_output[2];
-
+    float nn_output[5];
     runNeuralNetwork(nn_input, nn_output);
 
-    float output1 = nn_output[0];
-    float output2 = nn_output[1];
+    // Pick operation with highest confidence
+    int selected = 0;
+    float maxVal = nn_output[0];
+    for (int i = 1; i < 5; i++) {
+    if (nn_output[i] > maxVal) {
+        maxVal = nn_output[i];
+        selected = i;
+    }
+    }
 
+    // Map index to character
+    char operationFromNN[] = {'s', 'f', 'r', 'c', 'a'};
+    currentOperation = operationFromNN[selected];
     // Set accelerations based on NN output
     if ((current < 0.02) && (current > -0.02)) { 
       step1.setAccelerationRad(-output1);
