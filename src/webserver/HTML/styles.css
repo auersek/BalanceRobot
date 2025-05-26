@@ -1,0 +1,84 @@
+/* styles.css */
+
+/* --- Layout & Panels --- */
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    height: 100vh;
+    margin: 0;
+    background: url('images/background.jpg') center/cover repeat;
+    flex-wrap: wrap;
+  }
+  
+  .container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .panel-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+  
+  .panel {
+    width: 45%;
+    margin: 10px;
+    padding: 20px;
+    text-align: center;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  
+  .main-title {
+    font-size: 48px;
+    font-weight: bold;
+    margin-top: 20px;
+  }
+  
+  /* --- Directional Buttons --- */
+  .directional-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    width: 270px;
+    height: 270px;
+    margin: auto;
+  }
+  
+  .btn {
+    width: 70px;
+    height: 70px;
+    margin: auto;
+    background-color: rgba(51,196,240,0.26);
+    border: 1px solid #ccc;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  
+  .btn:hover,
+  .btn.active {
+    background-color: #4CAF50;
+  }
+  
+  /* Button placement */
+  .forward       { grid-column: 2; grid-row: 1; transform: rotate(0deg); }
+  .anticlockwise { grid-column: 1; grid-row: 2; transform: rotate(-90deg); }
+  .stop          { grid-column: 2; grid-row: 2; clip-path: none; border-radius: 7px; }
+  .clockwise     { grid-column: 3; grid-row: 2; transform: rotate(90deg); }
+  .reverse       { grid-column: 2; grid-row: 3; transform: rotate(180deg); }
+  

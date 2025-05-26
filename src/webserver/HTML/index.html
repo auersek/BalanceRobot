@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Rover Remote Control Center</title>
+
+  <!-- 1) Your stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- 2) Third-party libs -->
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async
+          src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+  </script>
+
+  <!-- 3) Your behavior, deferred until after DOM load -->
+  <script defer src="main.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1 class="main-title">Robot Remote Control Center</h1>
+    <div class="panel-container">
+      <section class="panel control-panel">
+        <h2>Movement Control</h2>
+        <div class="directional-buttons">
+          <div class="btn forward"       data-cmd="f"></div>
+          <div class="btn anticlockwise" data-cmd="a"></div>
+          <div class="btn stop"          data-cmd="s"></div>
+          <div class="btn clockwise"     data-cmd="c"></div>
+          <div class="btn reverse"       data-cmd="r"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>
