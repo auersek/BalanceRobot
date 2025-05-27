@@ -12,7 +12,7 @@ int main() {
         boost::asio::io_context io;
 
         // 1) Open serial to ESP32
-        boost::asio::serial_port serial(io, "/dev/ttyUSB0");
+        boost::asio::serial_port serial(io, "/dev/tty.usbserial-110");
         serial.set_option(boost::asio::serial_port_base::baud_rate(115200));
         std::cout << "[Pi] Serial open on /dev/ttyUSB0 @115200\n";
 

@@ -15,7 +15,7 @@ int main() {
     sockaddr_in serv{};
     serv.sin_family = AF_INET;
     serv.sin_port   = htons(8000);
-    inet_pton(AF_INET, "172.26.224.15", &serv.sin_addr); 
+    inet_pton(AF_INET, "127.0.0.1", &serv.sin_addr); 
     if (connect(sock, (sockaddr*)&serv, sizeof(serv)) < 0) {
         perror("connect");
         return 1;
