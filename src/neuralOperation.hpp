@@ -326,14 +326,14 @@ void loop()
   
   if (millis() > printTimer) {
     printTimer += PRINT_INTERVAL;
-  Serial.print(AccelAngle); Serial.print(",");
-  Serial.print(GyroAngle); Serial.print(",");
-  Serial.print(SpinAngle); Serial.print(",");
-  Serial.print(currentspeed); Serial.print(",");
-  Serial.print(SpinComp); Serial.print(",");
-  Serial.print(prev); Serial.print(",");
-  Serial.println(prev - Turndrive); 
-  // Serial.println();
+    Serial.print(AccelAngle); Serial.print(",");
+    Serial.print(GyroAngle); Serial.print(",");
+    Serial.print(SpinAngle); Serial.print(",");
+    Serial.print(currentspeed); Serial.print(",");
+    Serial.print(SpinComp); Serial.print(",");
+    Serial.print(prev); Serial.print(",");
+    Serial.println(prev - Turndrive); 
+    // Serial.println();
   }
 
 
