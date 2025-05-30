@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <HardwareSerial.h>
-#include "nn_weights.h"
+#include "nn_control_weights1.h"
 
 bool isTurningAnti=true;
 bool isTurningClock=true;
@@ -117,25 +117,32 @@ float relu(float x) {
   return x > 0 ? x : 0;
 }
 
-void runNeuralNetwork(float input[5], float output[2]) {
-  float hidden[10];
-  // First layer (input -> hidden)
-  for (int i = 0; i < 10; i++) {
-    hidden[i] = Bias0[i];
-    for (int j = 0; j < 5; j++) {
-      hidden[i] += W0[i][j] * input[j];
+void runNeuralNetwork(float input[10], float output[5]) {
+  float hidden1[16];
+  float hidden2[16];
+
+  for (int i = 0; i < 16; i++) {
+    hidden1[i] = Bias0[i];
+    for (int j = 0; j < 10; j++) {
+      hidden1[i] += W0[i][j] * input[j];
     }
-    hidden[i] = relu(hidden[i]);  // Activation
+    hidden1[i] = relu(hidden1[i]);  
   }
 
-  // Second layer (hidden -> output)
-  for (int i = 0; i < 2; i++) {
-    output[i] = Bias1[i];
-    for (int j = 0; j < 10; j++) {
-      output[i] += W1[i][j] * hidden[j];
+  for (int i = 0; i < 16; i++) {
+    hidden2[i] = Bias1[i];
+    for (int j = 0; j < 16; j++) {
+      hidden2[i] += W1[i][j] * hidden1[j];
     }
-    // Optional: Apply activation if needed (e.g., relu or tanh)
-    // output[i] = relu(output[i]);
+    hidden2[i] = relu(hidden2[i]); 
+  }
+
+  for (int i = 0; i < 5; i++) {
+    output[i] = Bias2[i];
+    for (int j = 0; j < 16; j++) {
+      output[i] += W2[i][j] * hidden2[j];
+    }
+    // Optional: output[i] = relu(output[i]); or softmax outside
   }
 }
 
@@ -268,16 +275,19 @@ void loop()
 
     Turndrive = Pt + Dt + It;
 
-    float nn_input[8] = {
+    float nn_input[10] = {
     AccelAngle,     // 
     GyroAngle,      //
     SpinAngle,
     currentspeed,
     SpinComp,
+    prev - Turndrive,
+    prev,
     WheelPos,       // or xdistance
     error,          // balance control error
     turnerror       // turn completion status
     };
+
 
     float nn_output[5];
     runNeuralNetwork(nn_input, nn_output);
@@ -295,13 +305,17 @@ void loop()
     // Map index to character
     char operationFromNN[] = {'s', 'f', 'r', 'c', 'a'};
     currentOperation = operationFromNN[selected];
+
+
     // Set accelerations based on NN output
-    if ((current < 0.02) && (current > -0.02)) { 
-      step1.setAccelerationRad(-output1);
-      step2.setAccelerationRad( output1);
-    } else {
-      step1.setAccelerationRad(-output1);
-      step2.setAccelerationRad( output1);
+    if((current < 0.02) && (current > -0.02)){ 
+    step1.setAccelerationRad(-prev - Turndrive);
+    step2.setAccelerationRad( prev - Turndrive);
+    }
+
+    else{
+    step1.setAccelerationRad(-prev);
+    step2.setAccelerationRad( prev);
     }
  
     //Keep target speed constant depending on the sign of the PID output
@@ -326,22 +340,23 @@ void loop()
   
   if (millis() > printTimer) {
     printTimer += PRINT_INTERVAL;
-    Serial.print(AccelAngle); Serial.print(",");
-    Serial.print(GyroAngle); Serial.print(",");
-    Serial.print(SpinAngle); Serial.print(",");
-    Serial.print(currentspeed); Serial.print(",");
-    Serial.print(SpinComp); Serial.print(",");
-    Serial.print(prev); Serial.print(",");
-    Serial.println(prev - Turndrive); 
+    Serial.println(currentOperation); //Serial.print(",");
+    // Serial.print(AccelAngle); Serial.print(",");
+    // Serial.print(GyroAngle); Serial.print(",");
+    // Serial.print(SpinAngle); Serial.print(",");
+    // Serial.print(currentspeed); Serial.print(",");
+    // Serial.print(SpinComp); Serial.print(",");
+    // Serial.print(prev); Serial.print(",");
+    // Serial.println(prev - Turndrive); 
     // Serial.println();
   }
 
 
- if (Serial.available()>0) {
-    char incomingByte = Serial.read();
-    currentOperation=incomingByte;
-    Serial.print(incomingByte);
-  }
+//  if (Serial.available()>0) {
+//     char incomingByte = Serial.read();
+//     currentOperation=incomingByte;
+//     Serial.print(incomingByte);
+//   }
   switch (currentOperation) {
     case 'f': // Forward
       if (setspeed != -7) {

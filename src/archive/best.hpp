@@ -17,22 +17,22 @@ const int bufferSize = 32; // Set buffer size to 32 bytes
 
 static unsigned long printTimer = 0;       //time of the next print
 static unsigned long loopTimer = 0;        //time of the next control update
-static float accelAngle = 0;
-static float spinAngle = 0;                //theta_ntilt angle
-static float gyroAngle = 0;                //rate of change of tilt angle 
-static float theta_n= 0;
+static float AccelAngle = 0;
+static float SpinAngle = 0;                //current tilt angle
+static float GyroAngle = 0;                //rate of change of tilt angle 
+static float current = 0;
 static float Turndrive = 0;
-static float current_speed = 0;
+static float currentspeed = 0;
 static float WheelPos = 0;
 static float CurrentXDistance, PrevXDistance, CurrentYDistance, PrevYDistance = 0;
 //Errors
-static float prev_theta_n, prev_speed, prevspin;
-static float error, speed_error, turn_error; 
-static float prev_error, prev_speed_error, prev_turn_error;    
+static float prev, prevspeed, prevspin;
+static float error, speederror, turnerror; 
+static float preverror, prevspeederror, prevturnerror;    
 //PID Gains 
 static float P, D, I, Ps, Ds, Is, Pt, Dt, It;
 //Components
-static float GyroComp, AccelComp, spinComp; 
+static float GyroComp, AccelComp, SpinComp; 
 
 
 // The Stepper pins
@@ -53,16 +53,16 @@ const int TOGGLE_PIN        = 32;
 
 const int PRINT_INTERVAL = 200;
 const int LOOP_INTERVAL = 5;
-const int STEPPER_INTERVAL_US = 20;
+const int  STEPPER_INTERVAL_US = 20;
 char currentOperation='S';
 
 //PID values
-const float kp = 2200;
-const float kd = 64;
-const float ki = 7;
+const float kp = 2000;
+const float kd = 60;
+const float ki = 5;
 
 const float sp = 0.002;
-const float sd = 0.00001;
+const float sd = 0;
 const float si = 0;
 
 const float tp = 10;
@@ -73,9 +73,9 @@ const float ti = 0;
 const float c = 0.98;
 
 //static
-float reference;// = 0.0135;
-float setspeed = 0;         
-float turn_reference = 0;
+float setpoint;// = 0.0135;
+float setspeed = 0;
+float setturn = 0;
 float xdistance = 0;  //1m = 2000
 float ydistance = 0;
 
@@ -134,6 +134,44 @@ void setup()
   digitalWrite(STEPPER_EN_PIN, false);
 }
 
+//Autonomous control function
+void setco(){
+  /*  if((CurrentXDistance < xdistance) && (SpinComp > setturn) - 0.05 && (SpinComp < setturn + 0.05)){      
+    setspeed = -13;
+    CurrentXDistance = (WheelPos/200)*6.5 + PrevXDistance;
+    PrevXDistance = CurrentXDistance;
+  }
+  //if arrived at x coordinate
+  else{
+    setspeed = 0;
+    xdistance = 0;
+  //If there is a y coordinate, turn to face it, else do noting 
+  if((ydistance < 0) && !turned){
+    setturn = setturn + 1.57;
+    turned = true;
+  }
+  else if((ydistance > 0) && !turned){
+    setturn = setturn - 1.57;
+    turned = true;
+  }
+  else if (ydistance == 0){
+    setspeed = 0;
+  }
+  //Go to y position
+  if((abs(CurrentYDistance) < abs(ydistance)) && (SpinComp > setturn - 0.05) && (SpinComp < setturn + 0.05)){      
+    setspeed = -13; 
+    CurrentYDistance = (WheelPos/200)*6.5 + PrevYDistance;
+    PrevYDistance = CurrentYDistance;
+  }
+ //Arrived at y location
+  else if(abs(CurrentYDistance) >= abs(ydistance)){                      
+    setspeed = 0;
+    ydistance = 0;
+    turned = false;
+  }
+  }*/
+}
+
 void loop()
 {
   //static float i = 0;
@@ -146,63 +184,67 @@ void loop()
     mpu.getEvent(&a, &g, &temp);
 
     //Calculate accelerometer Tilt using sin x = x approximation for a small tilt angle and measure gyroscope tilt
-    accelAngle = (a.acceleration.z/9.67) - 0.030;   // was - 0.037 
-    spinAngle = (g.gyro.roll) + 0.065;     // on other robot + 0.0721
-    gyroAngle = (g.gyro.pitch);
+    AccelAngle = (a.acceleration.z/9.67) - 0.013;   // was - 0.037 
+    SpinAngle = (g.gyro.roll) + 0.022;     // on other robot + 0.0721
+    GyroAngle = (g.gyro.pitch);
 
+  setco();
   WheelPos = step1.getPosition();
 
 //Speed Control
-    current_speed = step1.getSpeedRad();
-    speed_error = setspeed - current_speed;
-    prev_speed_error = setspeed - prev_speed_error;
-    Ps = speed_error * sp;
-    Ds = -((speed_error - prev_speed_error) / 0.005) * sd;  
-    Is = (speed_error + prev_speed_error) * si * 0.005;
+    currentspeed = step1.getSpeedRad();
+    speederror = setspeed - currentspeed;
+    prevspeederror = setspeed - prevspeederror;
+    Ps = speederror*sp;
+    Ds = -((speederror-prevspeederror)/0.005)*sd;
+    Is = (speederror+prevspeederror)*si*0.005;
 
-    reference = Ps + Ds + Is - 0.004;
+    setpoint = Ps + Ds + Is - 0.004;
 
 //Balance control
 
     //complementary sensitivity filter
-    theta_n= (1 - c)*(accelAngle) + c*((gyroAngle - 0.02) *0.005 + prev_theta_n);       // Theta_n = theta_n also removed the 0.4 gyroAngle+0.4
+    current = (1 - c)*(AccelAngle) + c*((GyroAngle - 0.02) *0.005 + prev);       // Theta_n = current  also removed the 0.4 GyroAngle+0.4
+    // AccelComp = (AccelAngle+0.3);                                             // not Used
+    // GyroComp = ((GyroAngle+0.4) *0.005 + prev);
 
     //Turning angle
-    spinComp = (spinAngle) * 0.005 + prevspin;      // - 1.00
+    SpinComp = (SpinAngle) * 0.005 + prevspin;      // - 1.00
      
     //errors
-    turn_error = turn_reference - spinComp;
-    error = reference - theta_n;
-    prev_error = reference - prev_theta_n;      
-    prev_turn_error = turn_reference - prevspin;
+    turnerror = setturn - SpinComp;
+    error = setpoint - current;
+    preverror = setpoint - prev;      
+    prevturnerror = setturn - prevspin;
+
 
     //Balance controller
     P = error*kp;
-    D = -((error - prev_error) / 0.005) * kd;
-    I = (error + prev_error) * ki * 0.005;
+    D = -((error-preverror)/0.005)*kd;
+    I = (error+preverror)*ki*0.005;
 
-    prev_theta_n = P + D + I;
+    prev = P + D + I;
 
     //Turn controller
-    Pt = turn_error*tp;
-    Dt = ((turn_error-prev_turn_error)/0.005)*td;
-    It = (turn_error+prev_turn_error)*ti*0.005;
+    Pt = turnerror*tp;
+    Dt = ((turnerror-prevturnerror)/0.005)*td;
+    It = (turnerror+prevturnerror)*ti*0.005;
 
-    Turndrive = 0; //Pt + Dt + It;
+    Turndrive = Pt + Dt + It;
 
   //Change acceleration according to PID output
-  if((theta_n < 0.02) && (theta_n > -0.02)){ 
-  step1.setAccelerationRad(-prev_theta_n - Turndrive);
-  step2.setAccelerationRad( prev_theta_n - Turndrive);
+  if((current < 0.02) && (current > -0.02)){ 
+  step1.setAccelerationRad(-prev - Turndrive);
+  step2.setAccelerationRad( prev - Turndrive);
   }
 
   else{
-  step1.setAccelerationRad(-prev_theta_n);
-  step2.setAccelerationRad( prev_theta_n);
+  step1.setAccelerationRad(-prev);
+  step2.setAccelerationRad( prev);
   }
  
   //Keep target speed constant depending on the sign of the PID output
-  if(prev_theta_n>0){ 
+  if(prev>0){ 
    step1.setTargetSpeedRad( 15);          // Changed from 20 to 5
    step2.setTargetSpeedRad(-15);          // Also flipped signs between step1 and step2 
   }
@@ -213,9 +255,9 @@ void loop()
   }
   
   //Feedback
-  prev_theta_n = theta_n;
-  prev_speed = current_speed;
-  prevspin = spinComp;
+  prev = current;
+  prevspeed = currentspeed;
+  prevspin = SpinComp;
 
   }
   
@@ -223,16 +265,16 @@ void loop()
   
   if (millis() > printTimer) {
     printTimer += PRINT_INTERVAL;
-    Serial.print(accelAngle, 4); Serial.print(",");
-    Serial.print(gyroAngle, 4); Serial.print(",");
-    Serial.print(spinAngle, 4); Serial.print(",");
-    Serial.print(current_speed, 4); Serial.print(",");
-    Serial.print(spinComp,4); Serial.print(",");
-    Serial.print(prev_theta_n,4); Serial.print(",");
-    Serial.print(prev_theta_n - Turndrive, 4); Serial.print(",");
+    Serial.print(AccelAngle, 4); Serial.print(",");
+    Serial.print(GyroAngle, 4); Serial.print(",");
+    Serial.print(SpinAngle, 4); Serial.print(",");
+    Serial.print(currentspeed, 4); Serial.print(",");
+    Serial.print(SpinComp,4); Serial.print(",");
+    Serial.print(prev,4); Serial.print(",");
+    Serial.print(prev - Turndrive, 4); Serial.print(",");
     Serial.print(WheelPos, 4); Serial.print(",");
     Serial.print(error, 4); Serial.print(",");
-    Serial.print(turn_error, 4); Serial.print(",");
+    Serial.print(turnerror, 4); Serial.print(",");
     if(currentOperation == 's'){
       Serial.print(", 1, 0, 0, 0, 0"); 
     }
@@ -259,18 +301,18 @@ void loop()
   }
   switch (currentOperation) {
     case 'f': // Forward
-      if (setspeed != -10) {
+      if (setspeed != -7) {
         // Serial.println("Forward");
       }
-      setspeed = -10;
+      setspeed = -7;
       isTurningClock = false;
       isTurningAnti = false;
       break;
     case 'r': // Reverse
-      if (setspeed != 13) {
+      if (setspeed != 10) {
         // Serial.println("Reverse");
       }
-      setspeed = 13;
+      setspeed = 9;
       isTurningClock = false;
       isTurningAnti = false;
       break;
@@ -278,7 +320,7 @@ void loop()
     case 'c': // Clockwise Turn
       if (!isTurningClock) {
         // Serial.println("Clockwise");
-        turn_reference += 1.57;
+        setturn += 1.57;
         isTurningClock = true;
         isTurningAnti = false;
       }
@@ -287,7 +329,7 @@ void loop()
     case 'a': // Anti-clockwise Turn
       if (!isTurningAnti) {
         // Serial.println("Anti-Clockwise");
-        turn_reference -= 1.57;
+        setturn -= 1.57;
         isTurningAnti = true;
         isTurningClock = false;
       }
