@@ -9,6 +9,7 @@
 bool isTurningAnti=true;
 bool isTurningClock=true;
 bool turned = false;
+bool isAutonomous = false;
 // Power monitoring constants
 #define SAMPLES 64 // Multisampling
 #define CELLS 12 // Battery cells
@@ -74,7 +75,7 @@ const float c = 0.98;
 
 //static
 float reference;// = 0.0135;
-float setspeed = 0;         
+float set_speed = 0;         
 float turn_reference = 0;
 float xdistance = 0;  //1m = 2000
 float ydistance = 0;
@@ -134,6 +135,94 @@ void setup()
   digitalWrite(STEPPER_EN_PIN, false);
 }
 
+
+//Autonomous control function
+void setco(){
+  if((CurrentXDistance < xdistance) && (spinComp > turn_reference) - 0.05 && (spinComp < turn_reference + 0.05))
+  { 
+    set_speed = -13;
+    CurrentXDistance = (WheelPos/200)*6.5 + PrevXDistance;
+    PrevXDistance = CurrentXDistance;
+  }
+  //if arrived at x coordinate
+  else{
+    set_speed = 0;
+    xdistance = 0;
+  //If there is a y coordinate, turn to face it, else do noting 
+  if((ydistance < 0) && !turned){
+    turn_reference = turn_reference + 1.57;
+    turned = true;
+  }
+  else if((ydistance > 0) && !turned){
+    turn_reference = turn_reference - 1.57;
+    turned = true;
+  }
+  else if (ydistance == 0){
+    set_speed = 0;
+  }
+  //Go to y position
+  if((abs(CurrentYDistance) < abs(ydistance)) && (spinComp > turn_reference - 0.05) && (spinComp < turn_reference + 0.05)){      
+    set_speed = -13; 
+    CurrentYDistance = (WheelPos/200)*6.5 + PrevYDistance;
+    PrevYDistance = CurrentYDistance;
+  }
+ //Arrived at y location
+  else if(abs(CurrentYDistance) >= abs(ydistance)){                      
+    set_speed = 0;
+    ydistance = 0;
+    turned = false;
+  }
+  }
+}
+
+#define MAX_CMD_LEN 32
+char cmdBuf[MAX_CMD_LEN];
+uint8_t cmdPos = 0;
+
+void handleCommand(const char* cmd) {
+  if (cmd[0] == 'x') {
+    float x = 0, y = 0;
+    const char* pX = strchr(cmd, 'x');
+    const char* pY = strchr(cmd, 'y');
+    if (pX) x = atof(pX + 1);
+    if (pY) y = atof(pY + 1);
+    xdistance = x;
+    ydistance = y;
+    turned = false;
+    isAutonomous = true;
+    Serial.print("Received target: X=");
+    Serial.print(x);
+    Serial.print(" Y=");
+    Serial.println(y);
+  } else {
+    switch (cmd[0]) {
+      case 'f': set_speed = -10; isTurningClock = false; isTurningAnti = false; break;
+      case 'r': set_speed = 13;  isTurningClock = false; isTurningAnti = false; break;
+      case 'c': if (!isTurningClock) { turn_reference += 1.57; isTurningClock = true; isTurningAnti = false; } break;
+      case 'a': if (!isTurningAnti) { turn_reference -= 1.57; isTurningAnti = true; isTurningClock = false; } break;
+      case 's': set_speed = 0; isTurningClock = false; isTurningAnti = false; break;
+    }
+  }
+}
+
+void checkSerialInput() {
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n' || c == '\r') {
+      if (cmdPos > 0) {
+        cmdBuf[cmdPos] = '\0';
+        handleCommand(cmdBuf);
+        cmdPos = 0;
+      }
+    } else {
+      if (cmdPos < MAX_CMD_LEN - 1) {
+        cmdBuf[cmdPos++] = c;
+      }
+    }
+  }
+}
+
+
 void loop()
 {
   //static float i = 0;
@@ -146,16 +235,21 @@ void loop()
     mpu.getEvent(&a, &g, &temp);
 
     //Calculate accelerometer Tilt using sin x = x approximation for a small tilt angle and measure gyroscope tilt
-    accelAngle = (a.acceleration.z/9.67) - 0.030;   // was - 0.037 
-    spinAngle = (g.gyro.roll) + 0.065;     // on other robot + 0.0721
+    accelAngle = (a.acceleration.z/9.67) - 0.005;   // was - 0.037 
+    spinAngle = (g.gyro.roll) + 0.076;     // on other robot + 0.0721
     gyroAngle = (g.gyro.pitch);
 
-  WheelPos = step1.getPosition();
+    if (isAutonomous) {
+      setco();
+      isAutonomous = false;
+    }
+
+    WheelPos = step1.getPosition();
 
 //Speed Control
     current_speed = step1.getSpeedRad();
-    speed_error = setspeed - current_speed;
-    prev_speed_error = setspeed - prev_speed_error;
+    speed_error = set_speed - current_speed;
+    prev_speed_error = set_speed - prev_speed_error;
     Ps = speed_error * sp;
     Ds = -((speed_error - prev_speed_error) / 0.005) * sd;  
     Is = (speed_error + prev_speed_error) * si * 0.005;
@@ -188,7 +282,7 @@ void loop()
     Dt = ((turn_error-prev_turn_error)/0.005)*td;
     It = (turn_error+prev_turn_error)*ti*0.005;
 
-    Turndrive = 0; //Pt + Dt + It;
+    Turndrive = Pt + Dt + It;
 
   //Change acceleration according to PID output
   if((theta_n < 0.02) && (theta_n > -0.02)){ 
@@ -223,98 +317,76 @@ void loop()
   
   if (millis() > printTimer) {
     printTimer += PRINT_INTERVAL;
-    Serial.print(accelAngle, 4); Serial.print(",");
-    Serial.print(gyroAngle, 4); Serial.print(",");
-    Serial.print(spinAngle, 4); Serial.print(",");
-    Serial.print(current_speed, 4); Serial.print(",");
-    Serial.print(spinComp,4); Serial.print(",");
-    Serial.print(prev_theta_n,4); Serial.print(",");
-    Serial.print(prev_theta_n - Turndrive, 4); Serial.print(",");
-    Serial.print(WheelPos, 4); Serial.print(",");
-    Serial.print(error, 4); Serial.print(",");
-    Serial.print(turn_error, 4); Serial.print(",");
-    if(currentOperation == 's'){
-      Serial.print(", 1, 0, 0, 0, 0"); 
-    }
-    else if(currentOperation == 'f'){
-      Serial.print(", 0, 1, 0, 0, 0"); 
-    }
-    else if(currentOperation == 'r'){
-      Serial.print(", 0, 0, 1, 0, 0"); 
-    }
-    else if(currentOperation == 'c'){
-      Serial.print(", 0, 0, 0, 1, 0"); 
-    }
-    else if(currentOperation == 'a'){
-      Serial.print(", 0, 0, 0, 0, 1"); 
-    }
-    Serial.println();
   }
 
+//  if (Serial.available()>0) {
+//     char incomingByte = Serial.read();
+//     currentOperation=incomingByte;
+//     Serial.print(incomingByte);
+//   }
+//   switch (currentOperation) {
+//     case 'f': // Forward
+//       if (set_speed != -10) {
+//         // Serial.println("Forward");
+//       }
+//       set_speed = -10;
+//       isTurningClock = false;
+//       isTurningAnti = false;
+//       spinAngle = 0;
+//       break;
+//     case 'r': // Reverse
+//       if (set_speed != 13) {
+//         // Serial.println("Reverse");
+//       }
+//       set_speed = 13;
+//       isTurningClock = false;
+//       isTurningAnti = false;
+//       spinAngle = 0;
+//       break;
 
- if (Serial.available()>0) {
-    char incomingByte = Serial.read();
-    currentOperation=incomingByte;
-    Serial.print(incomingByte);
-  }
-  switch (currentOperation) {
-    case 'f': // Forward
-      if (setspeed != -10) {
-        // Serial.println("Forward");
-      }
-      setspeed = -10;
-      isTurningClock = false;
-      isTurningAnti = false;
-      break;
-    case 'r': // Reverse
-      if (setspeed != 13) {
-        // Serial.println("Reverse");
-      }
-      setspeed = 13;
-      isTurningClock = false;
-      isTurningAnti = false;
-      break;
+//     case 'c': // Clockwise Turn
+//       if (!isTurningClock) {
+//         // Serial.println("Clockwise");
+//         turn_reference += 1.57;
+//         isTurningClock = true;
+//         isTurningAnti = false;
+//       }
+//       break;
 
-    case 'c': // Clockwise Turn
-      if (!isTurningClock) {
-        // Serial.println("Clockwise");
-        turn_reference += 1.57;
-        isTurningClock = true;
-        isTurningAnti = false;
-      }
-      break;
+//     case 'a': // Anti-clockwise Turn
+//       if (!isTurningAnti) {
+//         // Serial.println("Anti-Clockwise");
+//         turn_reference -= 1.57;
+//         isTurningAnti = true;
+//         isTurningClock = false;
+//       }
+//       break;
+//     case 's': // Stop
+//       if (set_speed != 0) {
+//         // Serial.println("Stop");
+//       }
+//       set_speed = 0;
+//       isTurningClock = false;
+//       isTurningAnti = false;
+//       spinAngle = 0;
+//       break;
+//      case 'x':
+//         int x = 0;
+//         char position[50];
+//         position[0]='X';
+//         while(Serial.available()){
+//           x++;
+//           position[x]=Serial.read();
+//         }
+//         const char* posX = strchr(position, 'x');
+//         const char* posY = strchr(position, 'y');
+//         // Extract the substring after 'X' and convert to integer
+//         xdistance = atoi(posX + 1);
+//         // Extract the substring after 'Y' and convert to integer
+//         ydistance = atoi(posY + 1);
+//         // setco();
+//         break;
+//     } 
 
-    case 'a': // Anti-clockwise Turn
-      if (!isTurningAnti) {
-        // Serial.println("Anti-Clockwise");
-        turn_reference -= 1.57;
-        isTurningAnti = true;
-        isTurningClock = false;
-      }
-      break;
-    case 's': // Stop
-      if (setspeed != 0) {
-        // Serial.println("Stop");
-      }
-      setspeed = 0;
-      isTurningClock = false;
-      isTurningAnti = false;
-      break;
-     case 'x':
-        int x = 0;
-        char position[50];
-        position[0]='X';
-        while(Serial.available()){
-          x++;
-          position[x]=Serial.read();
-        }
-        const char* posX = strchr(position, 'X');
-        const char* posY = strchr(position, 'Y');
-        // Extract the substring after 'X' and convert to integer
-        xdistance = atoi(posX + 1);
-        // Extract the substring after 'Y' and convert to integer
-        ydistance = atoi(posY + 1);
-        // setco();
-        break;
-    } 
+ checkSerialInput();
 }

@@ -74,6 +74,35 @@
         // }
 
 
+    printTimer += PRINT_INTERVAL;
+    Serial.print(accelAngle, 4); Serial.print(",");
+    Serial.print(gyroAngle, 4); Serial.print(",");
+    Serial.print(spinAngle, 4); Serial.print(",");
+    Serial.print(current_speed, 4); Serial.print(",");
+    Serial.print(spinComp,4); Serial.print(",");
+    Serial.print(prev_theta_n,4); Serial.print(",");
+    Serial.print(prev_theta_n - Turndrive, 4); Serial.print(",");
+    Serial.print(WheelPos, 4); Serial.print(",");
+    Serial.print(error, 4); Serial.print(",");
+    Serial.print(turn_error, 4); Serial.print(",");
+    if(currentOperation == 's'){
+      Serial.print(", 1, 0, 0, 0, 0"); 
+    }
+    else if(currentOperation == 'f'){
+      Serial.print(", 0, 1, 0, 0, 0"); 
+    }
+    else if(currentOperation == 'r'){
+      Serial.print(", 0, 0, 1, 0, 0"); 
+    }
+    else if(currentOperation == 'c'){
+      Serial.print(", 0, 0, 0, 1, 0"); 
+    }
+    else if(currentOperation == 'a'){
+      Serial.print(", 0, 0, 0, 0, 1"); 
+    }
+    Serial.println();
+
+
 
 
 

@@ -184,7 +184,7 @@ void loop()
     mpu.getEvent(&a, &g, &temp);
 
     //Calculate accelerometer Tilt using sin x = x approximation for a small tilt angle and measure gyroscope tilt
-    AccelAngle = (a.acceleration.z/9.67) - 0.013;   // was - 0.037 
+    AccelAngle = (a.acceleration.z/9.67) - 0.073;   // was - 0.037 
     SpinAngle = (g.gyro.roll) + 0.022;     // on other robot + 0.0721
     GyroAngle = (g.gyro.pitch);
 
