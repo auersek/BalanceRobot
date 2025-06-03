@@ -20,7 +20,7 @@ public:
     }
 
     //Update the stepper motor, performing a step and updating the speed as necessary. Call every interval μs
-    void runStepper(){
+    void runStepper(){        // made at 11:15:59 pm
         //Note: ESP32 doesn't support floating point calculations in an ISR, so this function only uses integer operations
     
         //Increment speed calculation interval timer
@@ -48,16 +48,17 @@ public:
                 digitalWrite(dirPin, speed > 0);
 
                 //Increment/decrement position counter 
-                if (0 <= position && position <= 200 ){
-                  position += (speed > 0) ? 1 : -1;
-                }
-                else if(position < 0){
-                  position = position + 201;
-                }
-                else{
-                  position = position - 201;
-                }
-    
+                // if (0 <= position && position <= 200 ){
+                //   position += (speed > 0) ? 1 : -1;
+                // }
+                // else if(position < 0){
+                //   position = position + 201;
+                // }
+                // else{
+                //   position = position - 201;
+                // }
+                position = (speed > 0) ? 0.1 : -0.1;
+                // positiony += (speed > 0) ? 0.5*sin(Beyblade) : -0.5*sin(Beyblade);
                 //End pulse
                 digitalWrite(stepPin, LOW);
             }
@@ -102,6 +103,14 @@ public:
     float getPositionRad() {
         return static_cast<float>(position) * STEP_ANGLE;
     }
+
+    // float getPositionRadX() {
+    //     return static_cast<float>(positionx) * STEP_ANGLE;
+    // }
+
+    // float getPositionRadY() {
+    //     return static_cast<float>(positiony) * STEP_ANGLE;
+    // }
     
     //Get current speed in microsteps/(SPEED_SCALE * s)
     float getSpeed() {
@@ -118,7 +127,9 @@ public:
     int32_t stepTimer = 0;      //time since last step (μs)
     int32_t speedTimer = 0;     //time since last speed update (μs)
     int32_t step_period = 0;    //current time between steps (μs)
-    int32_t position = 0;       //current accumulated steps (steps)
+    float positionx = 0;         //current accumulated steps (steps)             // Was int32_t
+    float positiony = 0; 
+    float position = 0;    
     int8_t stepPin;             //output pin number for step
     int8_t dirPin;              //output pin number for direction
     int32_t speed = 0;          //current steps per SPEED_SCALE seconds (steps)

@@ -13,9 +13,14 @@ bool isAutonomous = false;
 // Power monitoring constants
 #define SAMPLES 64 // Multisampling
 #define CELLS 12 // Battery cells
+#define MAX_CMD_LEN 32
+
+char cmdBuf[MAX_CMD_LEN];
+uint8_t cmdPos = 0;
 
 const int bufferSize = 32; // Set buffer size to 32 bytes
 
+static unsigned long coordinateTimer = 0;  
 static unsigned long printTimer = 0;       //time of the next print
 static unsigned long loopTimer = 0;        //time of the next control update
 static float accelAngle = 0;
@@ -34,7 +39,21 @@ static float prev_error, prev_speed_error, prev_turn_error;
 static float P, D, I, Ps, Ds, Is, Pt, Dt, It;
 //Components
 static float GyroComp, AccelComp, spinComp; 
+static float turn_coord = 0;
 
+// Coordinates
+static float PrevWheelPos = 0;
+static float deltaWheel = 0;
+static float CurXCoord = 0, PrevXCoord = 0;
+static float CurYCoord = 0, PrevYCoord = 0;
+static float deltaDistance = 0;
+static float spinRad = 0;
+static float currentSpinAngle = 0;
+static float spinAngleStep = 0; 
+static float currentSpinAngleStep = 0;
+static float spinRadStep = 0;
+static float WheelPosX = 0;
+static float WheelPosY = 0;
 
 // The Stepper pins
 const int STEPPER1_DIR_PIN  = 16;
@@ -52,6 +71,7 @@ const int ADC_MOSI_PIN      = 23;
 // Diagnostic pin for oscilloscope
 const int TOGGLE_PIN        = 32;
 
+const int COORDINATE_INTERVAL = 200;
 const int PRINT_INTERVAL = 200;
 const int LOOP_INTERVAL = 5;
 const int STEPPER_INTERVAL_US = 20;
@@ -60,10 +80,10 @@ char currentOperation='S';
 //PID values
 const float kp = 2200;
 const float kd = 64;
-const float ki = 7;
+const float ki = 0.1;         // make 0 later if in a bad mood, ki is the worst constant in the game no question
 
 const float sp = 0.002;
-const float sd = 0.00001;
+const float sd = 0.000012;
 const float si = 0;
 
 const float tp = 10;
@@ -134,50 +154,75 @@ void setup()
   pinMode(STEPPER_EN_PIN,OUTPUT);
   digitalWrite(STEPPER_EN_PIN, false);
 }
+     
+void setco() {
+  // If both distances have been reached, stop and exit autonomous mode
+  if (xdistance == 0 && ydistance == 0) {
+    set_speed = 0;
+    isAutonomous = false;
+    return;
+  }
+  // Update X movement if not yet reached
+  if (xdistance != 0) {
+    // Update current X distance based on wheel movement
+    // float deltaX = WheelPos;     //  / 200.0) * 6.5
+    // CurrentXDistance += deltaX;
+    // PrevXDistance = CurrentXDistance;
+   
+    float errorX = xdistance - WheelPos;
 
+    // Move forward in X if within heading tolerance
+    if (WheelPos < xdistance && errorX >= 0.11) {     // CurrentXDistance         && spinComp > turn_reference - 0.05 && spinComp < turn_reference + 0.05
+      set_speed = -15;
+    } 
+    else if (WheelPos < xdistance && errorX <= 0.15) {     // CurrentXDistance         && spinComp > turn_reference - 0.05 && spinComp < turn_reference + 0.05
+      set_speed = -15*abs(errorX)*2;
+    } 
+    // else if (WheelPos > xdistance) {   //  && spinComp > turn_reference - 0.05 && spinComp < turn_reference + 0.05
+    //   set_speed = 15*abs(errorX);
+    // } 
+    else {
+      // Stop X movement and begin turning
+      set_speed = 0;
+      xdistance = 0;
 
-//Autonomous control function
-void setco(){
-  if((CurrentXDistance < xdistance) && (spinComp > turn_reference) - 0.05 && (spinComp < turn_reference + 0.05))
-  { 
-    set_speed = -13;
-    CurrentXDistance = (WheelPos/200)*6.5 + PrevXDistance;
-    PrevXDistance = CurrentXDistance;
+      if (!turned) {
+        if (ydistance < 0) {
+          turn_reference += 1.57;  // +90 degrees
+        } else if (ydistance > 0) {
+          turn_reference -= 1.57;  // -90 degrees
+        } else{
+          turn_reference = 0;
+        } 
+        turned = true;
+        CurrentXDistance = 0;
+        PrevXDistance = 0;
+      }
+    }
+    return;  // Exit for now — Y handled after X
   }
-  //if arrived at x coordinate
-  else{
-    set_speed = 0;
-    xdistance = 0;
-  //If there is a y coordinate, turn to face it, else do noting 
-  if((ydistance < 0) && !turned){
-    turn_reference = turn_reference + 1.57;
-    turned = true;
-  }
-  else if((ydistance > 0) && !turned){
-    turn_reference = turn_reference - 1.57;
-    turned = true;
-  }
-  else if (ydistance == 0){
-    set_speed = 0;
-  }
-  //Go to y position
-  if((abs(CurrentYDistance) < abs(ydistance)) && (spinComp > turn_reference - 0.05) && (spinComp < turn_reference + 0.05)){      
-    set_speed = -13; 
-    CurrentYDistance = (WheelPos/200)*6.5 + PrevYDistance;
-    PrevYDistance = CurrentYDistance;
-  }
- //Arrived at y location
-  else if(abs(CurrentYDistance) >= abs(ydistance)){                      
-    set_speed = 0;
-    ydistance = 0;
-    turned = false;
-  }
+  // If turning is done and ydistance remains
+  if (ydistance != 0) {
+    // Update current Y distance
+    // float deltaY = WheelPos;     //  / 200.0) * 6.5
+    // CurrentYDistance += deltaY;
+    // PrevYDistance = CurrentYDistance;
+
+    if (abs(WheelPos) < abs(ydistance) &&
+        spinComp > turn_reference - 0.05 &&
+        spinComp < turn_reference + 0.05) {
+      set_speed = -13;
+    } else {
+      // Y target reached
+      set_speed = 0;
+      ydistance = 0;
+      turned = false;
+      CurrentYDistance = 0;
+      PrevYDistance = 0;
+    }
   }
 }
 
-#define MAX_CMD_LEN 32
-char cmdBuf[MAX_CMD_LEN];
-uint8_t cmdPos = 0;
 
 void handleCommand(const char* cmd) {
   if (cmd[0] == 'x') {
@@ -196,11 +241,11 @@ void handleCommand(const char* cmd) {
     Serial.println(y);
   } else {
     switch (cmd[0]) {
-      case 'f': set_speed = -10; isTurningClock = false; isTurningAnti = false; break;
-      case 'r': set_speed = 13;  isTurningClock = false; isTurningAnti = false; break;
-      case 'c': if (!isTurningClock) { turn_reference += 1.57; isTurningClock = true; isTurningAnti = false; } break;
-      case 'a': if (!isTurningAnti) { turn_reference -= 1.57; isTurningAnti = true; isTurningClock = false; } break;
-      case 's': set_speed = 0; isTurningClock = false; isTurningAnti = false; break;
+      case 'f': accelAngle = set_speed = -15; currentOperation = 'f'; isTurningClock = false; isTurningAnti = false; break;      // changed from  (a.acceleration.z/9.67) - 0.025; change tilt angle instead
+      case 'r': set_speed = 15; currentOperation = 'r'; isTurningClock = false; isTurningAnti = false; break;
+      case 'c': if (!isTurningClock) { turn_reference += 1.57; currentOperation = 'c'; isTurningClock = true; isTurningAnti = false; } break;
+      case 'a': if (!isTurningAnti) { turn_reference -= 1.57; currentOperation = 'a'; isTurningAnti = true; isTurningClock = false; } break;
+      case 's': set_speed = 0; currentOperation = 's'; isTurningClock = false; isTurningAnti = false; break;
     }
   }
 }
@@ -222,11 +267,8 @@ void checkSerialInput() {
   }
 }
 
-
 void loop()
 {
-  //static float i = 0;
-  //Run the control loop every LOOP_INTERVAL ms
   if (millis() > loopTimer) {
     loopTimer += LOOP_INTERVAL;
 
@@ -235,16 +277,33 @@ void loop()
     mpu.getEvent(&a, &g, &temp);
 
     //Calculate accelerometer Tilt using sin x = x approximation for a small tilt angle and measure gyroscope tilt
-    accelAngle = (a.acceleration.z/9.67) - 0.005;   // was - 0.037 
+    accelAngle = (a.acceleration.z/9.67) - 0.009;   // greater minus, moves towards R
     spinAngle = (g.gyro.roll) + 0.076;     // on other robot + 0.0721
     gyroAngle = (g.gyro.pitch);
 
+  
     if (isAutonomous) {
       setco();
-      isAutonomous = false;
     }
 
-    WheelPos = step1.getPosition();
+    // spinAngleStep = (g.gyro.roll) + 0.076; 
+    // currentSpinAngleStep += spinAngleStep;
+    // spinRadStep = (currentSpinAngleStep * DEG_TO_RAD)/4;
+
+    WheelPos = step1.getPositionRad();
+
+    // deltaWheel = WheelPos - PrevWheelPos;
+    // PrevWheelPos = WheelPos;
+
+    // deltaDistance = (WheelPos / 200.0) * 6.5; // cm per rotation segment
+    // Convert spinAngle from degrees to radians
+    currentSpinAngle += spinAngle;
+    spinRad = (currentSpinAngle * DEG_TO_RAD)/4;
+
+    // Update X and Y using delta
+    CurXCoord += WheelPos * cos(spinRad) * 10;
+    CurYCoord += WheelPos * sin(spinRad) * 10;
+
 
 //Speed Control
     current_speed = step1.getSpeedRad();
@@ -259,15 +318,15 @@ void loop()
 //Balance control
 
     //complementary sensitivity filter
-    theta_n= (1 - c)*(accelAngle) + c*((gyroAngle - 0.02) *0.005 + prev_theta_n);       // Theta_n = theta_n also removed the 0.4 gyroAngle+0.4
+    theta_n= (1 - c)*(accelAngle) + c*((gyroAngle - 0.02) *0.005 + prev_theta_n);    
 
     //Turning angle
     spinComp = (spinAngle) * 0.005 + prevspin;      // - 1.00
      
     //errors
-    turn_error = turn_reference - spinComp;
     error = reference - theta_n;
     prev_error = reference - prev_theta_n;      
+    turn_error = turn_reference - spinComp;
     prev_turn_error = turn_reference - prevspin;
 
     //Balance controller
@@ -297,8 +356,8 @@ void loop()
  
   //Keep target speed constant depending on the sign of the PID output
   if(prev_theta_n>0){ 
-   step1.setTargetSpeedRad( 15);          // Changed from 20 to 5
-   step2.setTargetSpeedRad(-15);          // Also flipped signs between step1 and step2 
+   step1.setTargetSpeedRad( 15);          // Changed from 20 to 15
+   step2.setTargetSpeedRad(-15);         
   }
 
   else{
@@ -313,80 +372,23 @@ void loop()
 
   }
   
-  //Print updates every PRINT_INTERVAL ms
   
   if (millis() > printTimer) {
     printTimer += PRINT_INTERVAL;
+    // Serial.print(xdistance); Serial.print(", ");
+    // Serial.print(set_speed); Serial.print(", ");
+    // // Serial.print(currentSpinAngle/4); Serial.print(",   ");
+    // Serial.print(" CurXCoord: "); Serial.print(CurXCoord);
+    // Serial.print(" CurYCoord: "); Serial.print(CurYCoord);
+    // Serial.print(" Angle: "); Serial.print(spinRad);
+    // Serial.println();
+    Serial.print("X:"); 
+    Serial.print(CurXCoord, 2);   // two decimal places
+    Serial.print(",Y:");
+    Serial.print(CurYCoord, 2);
+    Serial.print(",spinRad:");
+    Serial.println(spinRad, 2);
   }
 
-//  if (Serial.available()>0) {
-//     char incomingByte = Serial.read();
-//     currentOperation=incomingByte;
-//     Serial.print(incomingByte);
-//   }
-//   switch (currentOperation) {
-//     case 'f': // Forward
-//       if (set_speed != -10) {
-//         // Serial.println("Forward");
-//       }
-//       set_speed = -10;
-//       isTurningClock = false;
-//       isTurningAnti = false;
-//       spinAngle = 0;
-//       break;
-//     case 'r': // Reverse
-//       if (set_speed != 13) {
-//         // Serial.println("Reverse");
-//       }
-//       set_speed = 13;
-//       isTurningClock = false;
-//       isTurningAnti = false;
-//       spinAngle = 0;
-//       break;
-
-//     case 'c': // Clockwise Turn
-//       if (!isTurningClock) {
-//         // Serial.println("Clockwise");
-//         turn_reference += 1.57;
-//         isTurningClock = true;
-//         isTurningAnti = false;
-//       }
-//       break;
-
-//     case 'a': // Anti-clockwise Turn
-//       if (!isTurningAnti) {
-//         // Serial.println("Anti-Clockwise");
-//         turn_reference -= 1.57;
-//         isTurningAnti = true;
-//         isTurningClock = false;
-//       }
-//       break;
-//     case 's': // Stop
-//       if (set_speed != 0) {
-//         // Serial.println("Stop");
-//       }
-//       set_speed = 0;
-//       isTurningClock = false;
-//       isTurningAnti = false;
-//       spinAngle = 0;
-//       break;
-//      case 'x':
-//         int x = 0;
-//         char position[50];
-//         position[0]='X';
-//         while(Serial.available()){
-//           x++;
-//           position[x]=Serial.read();
-//         }
-//         const char* posX = strchr(position, 'x');
-//         const char* posY = strchr(position, 'y');
-//         // Extract the substring after 'X' and convert to integer
-//         xdistance = atoi(posX + 1);
-//         // Extract the substring after 'Y' and convert to integer
-//         ydistance = atoi(posY + 1);
-//         // setco();
-//         break;
-//     } 
-
- checkSerialInput();
+  checkSerialInput();
 }

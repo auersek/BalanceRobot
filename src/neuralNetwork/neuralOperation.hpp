@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <HardwareSerial.h>
-#include "nn_control_weights1.h"
+#include "nn_control_weights3.h"
 
 bool isTurningAnti=true;
 bool isTurningClock=true;
@@ -59,12 +59,12 @@ const int  STEPPER_INTERVAL_US = 20;
 char currentOperation='S';
 
 //PID values
-const float kp = 2000;
-const float kd = 65;
-const float ki = 5;
+const float kp = 2200;
+const float kd = 64;
+const float ki = 7;
 
 const float sp = 0.002;
-const float sd = 0;
+const float sd = 0.0001;
 const float si = 0;
 
 const float tp = 10;
@@ -118,10 +118,10 @@ float relu(float x) {
 }
 
 void runNeuralNetwork(float input[10], float output[5]) {
-  float hidden1[16];
-  float hidden2[16];
+  float hidden1[8];
+  float hidden2[8];
 
-  for (int i = 0; i < 16; i++) {
+  for (int i = 0; i < 8; i++) {
     hidden1[i] = Bias0[i];
     for (int j = 0; j < 10; j++) {
       hidden1[i] += W0[i][j] * input[j];
@@ -129,9 +129,9 @@ void runNeuralNetwork(float input[10], float output[5]) {
     hidden1[i] = relu(hidden1[i]);  
   }
 
-  for (int i = 0; i < 16; i++) {
+  for (int i = 0; i < 8; i++) {
     hidden2[i] = Bias1[i];
-    for (int j = 0; j < 16; j++) {
+    for (int j = 0; j < 8; j++) {
       hidden2[i] += W1[i][j] * hidden1[j];
     }
     hidden2[i] = relu(hidden2[i]); 
@@ -139,7 +139,7 @@ void runNeuralNetwork(float input[10], float output[5]) {
 
   for (int i = 0; i < 5; i++) {
     output[i] = Bias2[i];
-    for (int j = 0; j < 16; j++) {
+    for (int j = 0; j < 8; j++) {
       output[i] += W2[i][j] * hidden2[j];
     }
     // Optional: output[i] = relu(output[i]); or softmax outside
@@ -275,19 +275,28 @@ void loop()
 
     Turndrive = Pt + Dt + It;
 
-    float nn_input[10] = {
-    AccelAngle,     // 
-    GyroAngle,      //
-    SpinAngle,
-    currentspeed,
-    SpinComp,
-    prev - Turndrive,
-    prev,
-    WheelPos,       // or xdistance
-    error,          // balance control error
-    turnerror       // turn completion status
-    };
+    // float nn_input[10] = {
+    // AccelAngle,     // 
+    // GyroAngle,      //
+    // SpinAngle,
+    // currentspeed,
+    // SpinComp,
+    // prev - Turndrive,
+    // prev,
+    // WheelPos,       // or xdistance
+    // error,          // balance control error
+    // turnerror       // turn completion status
+    // };
 
+    const float input_means[10] = { 0.013436, -0.027545, 0.001755, -0.052406, -0.007188, -0.003192, -0.060934, 98.562500, -0.016339, 0.007188 };
+    const float input_stds[10] = { 0.028965, 0.046327, 0.063854, 0.860535, 0.019737, 0.006979, 0.551695, 60.996894, 0.015073, 0.019737 };
+    
+    float nn_input_raw[10] = {AccelAngle, GyroAngle, SpinAngle, currentspeed, SpinComp, prev - Turndrive, prev, WheelPos, error, turnerror};
+    float nn_input[10];
+
+    for (int i = 0; i < 10; i++) {
+        nn_input[i] = (nn_input_raw[i] - input_means[i]) / input_stds[i];
+    }
 
     float nn_output[5];
     runNeuralNetwork(nn_input, nn_output);
@@ -367,10 +376,10 @@ void loop()
       isTurningAnti = false;
       break;
     case 'r': // Reverse
-      if (setspeed != 9) {
+      if (setspeed != 7) {
         // Serial.println("Reverse");
       }
-      setspeed = 9;
+      setspeed = 7;
       isTurningClock = false;
       isTurningAnti = false;
       break;

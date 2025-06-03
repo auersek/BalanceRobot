@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <HardwareSerial.h>
-#include "nn_weights.h"
+#include "nn_balance_weights3.h"
 
 bool isTurningAnti=true;
 bool isTurningClock=true;
@@ -59,12 +59,12 @@ const int  STEPPER_INTERVAL_US = 20;
 char currentOperation='S';
 
 //PID values
-const float kp = 2000;
-const float kd = 65;
-const float ki = 5;
+const float kp = 2200;
+const float kd = 64;
+const float ki = 7;
 
 const float sp = 0.002;
-const float sd = 0;
+const float sd = 0.0001;
 const float si = 0;
 
 const float tp = 10;
@@ -109,25 +109,32 @@ float relu(float x) {
   return x > 0 ? x : 0;
 }
 
-void runNeuralNetwork(float input[5], float output[2]) {
-  float hidden[10];
-  // First layer (input -> hidden)
-  for (int i = 0; i < 10; i++) {
-    hidden[i] = Bias0[i];
-    for (int j = 0; j < 5; j++) {
-      hidden[i] += W0[i][j] * input[j];
+void runNeuralNetwork(float input[8], float output[2]) {
+  float hidden1[8];
+  float hidden2[8];
+
+  for (int i = 0; i < 8; i++) {
+    hidden1[i] = Bias0[i];
+    for (int j = 0; j < 8; j++) {
+      hidden1[i] += W0[i][j] * input[j];
     }
-    hidden[i] = relu(hidden[i]);  // Activation
+    hidden1[i] = relu(hidden1[i]);  
   }
 
-  // Second layer (hidden -> output)
-  for (int i = 0; i < 2; i++) {
-    output[i] = Bias1[i];
-    for (int j = 0; j < 10; j++) {
-      output[i] += W1[i][j] * hidden[j];
+  for (int i = 0; i < 8; i++) {
+    hidden2[i] = Bias1[i];
+    for (int j = 0; j < 8; j++) {
+      hidden2[i] += W1[i][j] * hidden1[j];
     }
-    // Optional: Apply activation if needed (e.g., relu or tanh)
-    // output[i] = relu(output[i]);
+    hidden2[i] = relu(hidden2[i]); 
+  }
+
+  for (int i = 0; i < 2; i++) {
+    output[i] = Bias2[i];
+    for (int j = 0; j < 8; j++) {
+      output[i] += W2[i][j] * hidden2[j];
+    }
+    // Optional: output[i] = relu(output[i]); or softmax outside
   }
 }
 
@@ -222,13 +229,15 @@ void loop()
 
     Turndrive = Pt + Dt + It;
 
-    float nn_input[5] = {
-      AccelAngle,
-      GyroAngle,
-      SpinAngle,
-      currentspeed,
-      SpinComp
-    };
+    const float input_means[8] = { 0.003115, -0.016977, -0.000962, 0.015790, 0.000163, 91.716667, -0.000037, -0.000163 };
+    const float input_stds[8] = { 0.021582, 0.048101, 0.022382, 1.069008, 0.001871, 56.363431, 0.001853, 0.001871 };
+
+    float nn_input_raw[8] = {AccelAngle, GyroAngle, SpinAngle, currentspeed, SpinComp, WheelPos, error, turnerror};
+    float nn_input[8];
+
+    for (int i = 0; i < 8; i++) {
+        nn_input[i] = (nn_input_raw[i] - input_means[i]) / input_stds[i];
+    }
 
     float nn_output[2];
 
@@ -241,10 +250,11 @@ void loop()
     if ((current < 0.02) && (current > -0.02)) { 
       step1.setAccelerationRad(-output1);
       step2.setAccelerationRad( output1);
-    } else {
-      step1.setAccelerationRad(-output1);
-      step2.setAccelerationRad( output1);
-    }
+    } 
+    // else {
+    //   step1.setAccelerationRad(-output2);
+    //   step2.setAccelerationRad( output2);
+    // }
  
     //Keep target speed constant depending on the sign of the PID output
     if(prev>0){ 

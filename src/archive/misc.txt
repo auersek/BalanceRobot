@@ -105,6 +105,147 @@
 
 
 
+//  if (Serial.available()>0) {
+//     char incomingByte = Serial.read();
+//     currentOperation=incomingByte;
+//     Serial.print(incomingByte);
+//   }
+//   switch (currentOperation) {
+//     case 'f': // Forward
+//       if (set_speed != -10) {
+//         // Serial.println("Forward");
+//       }
+//       set_speed = -10;
+//       isTurningClock = false;
+//       isTurningAnti = false;
+//       spinAngle = 0;
+//       break;
+//     case 'r': // Reverse
+//       if (set_speed != 13) {
+//         // Serial.println("Reverse");
+//       }
+//       set_speed = 13;
+//       isTurningClock = false;
+//       isTurningAnti = false;
+//       spinAngle = 0;
+//       break;
+
+//     case 'c': // Clockwise Turn
+//       if (!isTurningClock) {
+//         // Serial.println("Clockwise");
+//         turn_reference += 1.57;
+//         isTurningClock = true;
+//         isTurningAnti = false;
+//       }
+//       break;
+
+//     case 'a': // Anti-clockwise Turn
+//       if (!isTurningAnti) {
+//         // Serial.println("Anti-Clockwise");
+//         turn_reference -= 1.57;
+//         isTurningAnti = true;
+//         isTurningClock = false;
+//       }
+//       break;
+//     case 's': // Stop
+//       if (set_speed != 0) {
+//         // Serial.println("Stop");
+//       }
+//       set_speed = 0;
+//       isTurningClock = false;
+//       isTurningAnti = false;
+//       spinAngle = 0;
+//       break;
+//      case 'x':
+//         int x = 0;
+//         char position[50];
+//         position[0]='X';
+//         while(Serial.available()){
+//           x++;
+//           position[x]=Serial.read();
+//         }
+//         const char* posX = strchr(position, 'x');
+//         const char* posY = strchr(position, 'y');
+//         // Extract the substring after 'X' and convert to integer
+//         xdistance = atoi(posX + 1);
+//         // Extract the substring after 'Y' and convert to integer
+//         ydistance = atoi(posY + 1);
+//         // setco();
+//         break;
+//     } 
+
+
+    // Serial.print(accelAngle, 4); Serial.print(",");
+    // Serial.print(gyroAngle, 4); Serial.print(",");
+    // Serial.print(spinAngle, 4); Serial.print(",");
+    // Serial.print(current_speed, 4); Serial.print(",");
+    // Serial.print(spinComp,4); Serial.print(",");
+    // Serial.print(WheelPos, 4); Serial.print(",");
+    // Serial.print(error, 4); Serial.print(",");
+    // Serial.print(turn_error, 4); 
+    // Serial.print(prev_theta_n,4); Serial.print(",");
+    // Serial.print(prev_theta_n - Turndrive, 4); Serial.print(",");
+    // if(currentOperation == 's'){
+    //   Serial.print(", 1, 0, 0, 0, 0"); 
+    // }
+    // else if(currentOperation == 'f'){
+    //   Serial.print(", 0, 1, 0, 0, 0"); 
+    // }
+    // else if(currentOperation == 'r'){
+    //   Serial.print(", 0, 0, 1, 0, 0"); 
+    // }
+    // else if(currentOperation == 'c'){
+    //   Serial.print(", 0, 0, 0, 1, 0"); 
+    // }
+    // else if(currentOperation == 'a'){
+    //   Serial.print(", 0, 0, 0, 0, 1"); 
+    // }
+
+
+
+//Autonomous control function
+void setco(){
+  if (xdistance == 0 && ydistance == 0){
+    set_speed = 0;
+  }
+  else {
+    if((CurrentXDistance <= xdistance) && (spinComp > turn_reference - 0.05) && (spinComp < turn_reference + 0.05))
+    { 
+      set_speed = -13;
+      CurrentXDistance = (WheelPos/200)*6.5 + PrevXDistance;
+      PrevXDistance = CurrentXDistance;
+    }
+    //if arrived at x coordinate
+    else
+    {
+      set_speed = 0;     
+      xdistance = 0;
+      // Turn in correct direction
+      if((ydistance < 0) && !turned){
+        turn_reference = turn_reference + 1.57;
+        turned = true;
+      }
+      else if((ydistance >= 0) && !turned){
+        turn_reference = turn_reference - 1.57;
+        turned = true;
+      }
+      //Go to y position
+      if((abs(CurrentYDistance) <= abs(ydistance)) && (spinComp > turn_reference - 0.05) && (spinComp < turn_reference + 0.05)){      
+        set_speed = -13; 
+        CurrentYDistance = (WheelPos/200)*6.5 + PrevYDistance;
+        PrevYDistance = CurrentYDistance;
+      }
+    //Arrived at y location
+      else if(abs(CurrentYDistance) >= abs(ydistance)){                      
+        set_speed = 0;
+        ydistance = 0;
+        turned = false;
+      }
+    }
+  } 
+}
+
+
 
 
 
