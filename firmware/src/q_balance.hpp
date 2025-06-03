@@ -6,15 +6,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <HardwareSerial.h>
-
-#include <WiFi.h>
-#include <WebServer.h>
-
-// Wi-Fi stuff
-const char* ssid = "Jim";
-const char* password = "redandyellow";
-WebServer server(80);
-
 bool isTurningAnti=true;
 bool isTurningClock=true;
 bool turned = false;
@@ -133,40 +124,6 @@ bool TimerHandler(void * timerNo)
   return true;
 }
 
-// wifi
-void setupWiFi() {
-  WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nConnected. IP: ");
-  Serial.println(WiFi.localIP());
-}
-
-// wifi
-void setupWebServer() {
-  server.on("/f", []() { handleCommand("f"); server.send(200, "text/plain", "OK"); });
-  server.on("/r", []() { handleCommand("r"); server.send(200, "text/plain", "OK"); });
-  server.on("/a", []() { handleCommand("a"); server.send(200, "text/plain", "OK"); });
-  server.on("/c", []() { handleCommand("c"); server.send(200, "text/plain", "OK"); });
-  server.on("/s", []() { handleCommand("s"); server.send(200, "text/plain", "OK"); });
-  server.on("/q", []() { handleCommand("s"); server.send(200, "text/plain", "OK"); });
-
-  server.onNotFound([]() {
-    String uri = server.uri();
-    if (uri.startsWith("/x") && uri.indexOf("y") > 2) {
-      handleCommand(uri.c_str() + 1);
-      server.send(200, "text/plain", "OK");
-    } else {
-      server.send(404, "text/plain", "Invalid Command");
-    }
-  });
-
-  server.begin();
-}
-
 void setup()
 {
   const int bufferSize = 32; // Set buffer size to 32 bytes
@@ -196,9 +153,6 @@ void setup()
   //Enable the stepper motor drivers
   pinMode(STEPPER_EN_PIN,OUTPUT);
   digitalWrite(STEPPER_EN_PIN, false);
-
-  setupWiFi();
-  setupWebServer();
 }
      
 void setco() {
@@ -296,8 +250,10 @@ void handleCommand(const char* cmd) {
                 isTurningClock = false;
                 isTurningAnti = false;
 
+                // Stop autonomous mode
                 isAutonomous = false;
 
+                // Reset odometry completely:
                 CurXCoord = 0.0;
                 CurYCoord = 0.0;
                 PrevWheelPos      = step1.getPositionRad();
@@ -308,7 +264,7 @@ void handleCommand(const char* cmd) {
                 currentSpinAngle  = 0.0;
                 prevspin          = 0.0;
                 break;
-    }
+        }
   }
 }
 
@@ -453,5 +409,4 @@ void loop()
   }
 
   checkSerialInput();
-  server.handleClient(); 
 }
