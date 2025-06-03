@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Robot Control Center</title>
+  <link rel="stylesheet" href="styles5.css">
+</head>
+<body>
+  <div class="container">
+    <h1 class="main-title">Robot Control Center</h1>
+    <div class="grid-layout">
+
+      <!-- LEFT PANEL -->
+      <div class="left-panel">
+        <section class="panel control-panel">
+          <h2>Movement Control</h2>
+          <div class="directional-buttons">
+            <div></div>
+            <div class="btn forward" data-cmd="f">▲</div>
+            <div></div>
+            <div class="btn anticlockwise" data-cmd="a">◀</div>
+            <div class="btn stop" data-cmd="s">■</div>
+            <div class="btn clockwise" data-cmd="c">▶</div>
+            <div></div>
+            <div class="btn reverse" data-cmd="r">▼</div>
+            <div></div>
+          </div>
+        </section>
+
+        <section class="panel coordinate-panel">
+          <h2>Set Coordinates</h2>
+          <label for="x-input">X:</label>
+          <input id="x-input" type="number" placeholder="e.g. 100">
+          <label for="y-input">Y:</label>
+          <input id="y-input" type="number" placeholder="e.g. 200">
+          <div class="btn send-coords">Send</div>
+        </section>
+      </div>
+
+      <!-- CENTER PANEL -->
+      <div class="center-panel">
+        <section class="panel live-feed-panel">
+          <h2>Live Feed</h2>
+          <img
+            id="cameraStream"
+            src="http://172.26.191.104/livecam/cam.jpg"
+            alt="Live feed"
+            class="camera-feed"
+          >
+        </section>
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div class="right-panel">
+        <section class="panel detected-objects">
+          <h2>Detected Objects</h2>
+          <ul>
+            <li>Object 1 (placeholder)</li>
+            <li>Object 2 (placeholder)</li>
+          </ul>
+        </section>
+
+        <section class="panel battery-container">
+          <h2>Power Consumption</h2>
+          <div class="battery-outline">
+            <div class="battery-level" id="battery-fill"></div>
+          </div>
+          <span id="battery-text">100%</span>
+        </section>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- JS for control buttons etc -->
+  <script src="main5.js"></script>
+
+  <!-- Live feed refresher with error handling -->
+  <script>
+    const img = document.getElementById('cameraStream');
+    function refreshImage() {
+      img.src = 'http://172.26.191.104/livecam/cam.jpg?t=' + Date.now();
+    }
+    img.onerror = () => {
+      // If loading fails, try again after 100ms
+      setTimeout(refreshImage, 100);
+    };
+    setInterval(refreshImage, 100);
+  </script>
+</body>
+</html>

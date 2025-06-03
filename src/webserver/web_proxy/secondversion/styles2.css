@@ -1,0 +1,103 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+
+/* === General Layout === */
+body {
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: url('images/clash_royale2.jpeg') center/cover no-repeat;
+  color: #fff;
+}
+
+.container {
+  text-align: center;
+  margin-top: 40px;
+  width: 100%;
+}
+
+.main-title {
+  font-size: 42px;
+  font-weight: 800;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  margin-bottom: 20px;
+}
+
+/* === Control Panel === */
+.panel-container {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  flex-wrap: wrap;
+}
+
+.panel {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 30px;
+  width: 360px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.panel h2 {
+  font-weight: 600;
+  margin-bottom: 25px;
+  color: #fff;
+}
+
+/* === Button Grid === */
+.directional-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 80px);
+  grid-template-rows: repeat(3, 80px);
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  margin: 0 auto;
+}
+
+/* === Buttons (General) === */
+.btn {
+  width: 80px;
+  height: 80px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 15px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 32px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn:hover {
+  transform: scale(1.05);
+}
+
+.btn.active {
+  background: #a6d2e8; /* light blue */
+  color: white;
+  transform: scale(1.05);
+}
+
+/* === Stop Button === */
+.btn.stop {
+    font-size: 64px;
+    color: white;
+    background: rgba(255, 255, 255, 0.2);  /* default background */
+    border-radius: 15px;
+    transition: background 0.2s ease, transform 0.2s ease;
+  }
+
+  .btn.stop.active {
+    background: #a6d2e8; /* same soft blue */
+    color: white;
+  }
+  

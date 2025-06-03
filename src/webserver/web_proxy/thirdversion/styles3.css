@@ -1,0 +1,171 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+
+body {
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: url('images/clash_royale2.jpeg') center/cover no-repeat;
+  color: #fff;
+}
+
+.container {
+  text-align: center;
+  margin-top: 40px;
+  width: 100%;
+}
+
+.main-title {
+  font-size: 42px;
+  font-weight: 800;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  margin-bottom: 20px;
+}
+
+.panel-grid {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: center;
+  align-items: center;
+  gap: 40px;
+  margin-top: 20px;
+}
+
+.panel {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 30px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.directional-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 80px);
+  grid-template-rows: repeat(3, 80px);
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  margin: 0 auto;
+}
+
+.btn {
+  width: 80px;
+  height: 80px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 15px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 32px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn:hover {
+  transform: scale(1.05);
+}
+
+.btn.active {
+  background: #a6d2e8;
+  color: white;
+  transform: scale(1.05);
+}
+
+.btn.stop {
+  font-size: 64px;
+  color: white;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.btn.stop.active {
+  background: #a6d2e8;
+  color: white;
+}
+
+.coordinate-panel {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.coordinate-panel input {
+  width: 80%;
+  padding: 8px;
+  border-radius: 8px;
+  border: none;
+  font-size: 16px;
+  text-align: center;
+}
+
+.send-coords {
+    font-size: 14px;        
+    padding: 6px 0;        
+    width: 60%;            
+    height: 36px;            
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+.send-coords:hover {
+  transform: scale(1.05);
+}
+
+.send-coords.active {
+  background: #a6d2e8;
+  color: white;
+  transform: scale(1.05);
+}
+
+.battery-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+  justify-content: center;
+}
+
+.battery-outline {
+  width: 100px;
+  height: 30px;
+  border: 2px solid #fff;
+  border-radius: 5px;
+  position: relative;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.3);
+}
+
+.battery-outline::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: -6px;
+  width: 6px;
+  height: 14px;
+  background: #fff;
+  border-radius: 1px;
+}
+
+.battery-level {
+  height: 100%;
+  background: linear-gradient(to right, #4caf50, #a6d2e8);
+  border-radius: 3px;
+  width: 100%; /* starts full */
+  transition: width 0.3s ease;
+}
+
+#battery-text {
+  font-size: 18px;
+  font-weight: bold;
+  color: white;
+}
+

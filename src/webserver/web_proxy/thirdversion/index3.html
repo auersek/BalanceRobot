@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Whobot Whemote Contwhol Center</title>
+  <link rel="stylesheet" href="styles3.css">
+</head>
+<body>
+  <div class="container">
+    <h1 class="main-title">Whobot Contwhol</h1>
+
+    <!-- Battery Bar UI -->
+    <div class="battery-container">
+      <div class="battery-outline">
+        <div class="battery-level" id="battery-fill"></div>
+      </div>
+      <span id="battery-text">100%</span>
+    </div>
+
+    <div class="panel-grid">
+      <!-- Movement Control Panel -->
+      <section class="panel control-panel">
+        <h2>Movement Contwhol</h2>
+        <div class="directional-buttons">
+          <div></div>
+          <div class="btn forward" data-cmd="f">▲</div>
+          <div></div>
+
+          <div class="btn anticlockwise" data-cmd="a">◀</div>
+          <div class="btn stop" data-cmd="s">■</div>
+          <div class="btn clockwise" data-cmd="c">▶</div>
+
+          <div></div>
+          <div class="btn reverse" data-cmd="r">▼</div>
+          <div></div>
+        </div>
+      </section>
+
+      <!-- Coordinate Entry Panel -->
+      <section class="panel coordinate-panel">
+        <h2>Set Cowhowdinates</h2>
+        <label for="x-input">X:</label>
+        <input id="x-input" type="number" placeholder="e.g. 100">
+        <label for="y-input">Y:</label>
+        <input id="y-input" type="number" placeholder="e.g. 200">
+        <div class="btn send-coords" data-cmd="x">Send</div>
+      </section>
+    </div>
+  </div>
+
+  <script src="main3.js"></script>
+</body>
+</html>
