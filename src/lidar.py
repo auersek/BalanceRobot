@@ -116,7 +116,9 @@ if __name__ == "__main__":
     plt.ylim(-PLOT_MAX_RANGE,PLOT_MAX_RANGE)
 
     # Main state machine
+    
     while running:
+        print(f"Current state: {state}")
         # Find 1st header byte
         if state == State.SYNC0:
             data = b''

@@ -1,5 +1,5 @@
 CXX = g++
-SRC = src/grid.cpp
+SRC = src/grid.cpp	# changed from grid.cpp to
 INC = -Iinclude
 CFLAGS = -std=c++17 $(shell sdl2-config --cflags)
 LIBS = $(shell sdl2-config --libs)

@@ -139,6 +139,9 @@ void setup()
   }
   Serial.println("MPU6050 Found!");
 
+  CurXCoord = 0.5;
+  CurYCoord = 0.5;
+
   mpu.setAccelerometerRange(MPU6050_RANGE_2_G);
   mpu.setGyroRange(MPU6050_RANGE_250_DEG);
   mpu.setFilterBandwidth(MPU6050_BAND_44_HZ);
@@ -246,25 +249,7 @@ void handleCommand(const char* cmd) {
       case 'c': if (!isTurningClock) { turn_reference += 1.57; currentOperation = 'c'; isTurningClock = true; isTurningAnti = false; } break;
       case 'a': if (!isTurningAnti) { turn_reference -= 1.57; currentOperation = 'a'; isTurningAnti = true; isTurningClock = false; } break;
       case 's': set_speed = 0; currentOperation = 's'; isTurningClock = false; isTurningAnti = false; break;
-      case 'q': set_speed = 0.0;
-                isTurningClock = false;
-                isTurningAnti = false;
-
-                // Stop autonomous mode
-                isAutonomous = false;
-
-                // Reset odometry completely:
-                CurXCoord = 0.0;
-                CurYCoord = 0.0;
-                PrevWheelPos      = step1.getPositionRad();
-                CurrentXDistance  = 0.0;
-                CurrentYDistance  = 0.0;
-                PrevXCoord        = 0.0;
-                PrevYCoord        = 0.0;
-                currentSpinAngle  = 0.0;
-                prevspin          = 0.0;
-                break;
-        }
+    }
   }
 }
 

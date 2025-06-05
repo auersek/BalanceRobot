@@ -78,12 +78,12 @@ const int STEPPER_INTERVAL_US = 20;
 char currentOperation='S';
 
 //PID values
-const float kp = 2200;
-const float kd = 64;
+const float kp = 2000;        // with battery  2200
+const float kd = 60;          // with battery  64
 const float ki = 0.1;         // make 0 later if in a bad mood, ki is the worst constant in the game no question
 
-const float sp = 0.002;
-const float sd = 0.000012;
+const float sp = 0.002;       // with battery 0.002
+const float sd = 0.00001;    // with battery 0.00001
 const float si = 0;
 
 const float tp = 10;
@@ -137,11 +137,15 @@ void setup()
       delay(10);
     }
   }
+
   Serial.println("MPU6050 Found!");
 
   mpu.setAccelerometerRange(MPU6050_RANGE_2_G);
   mpu.setGyroRange(MPU6050_RANGE_250_DEG);
   mpu.setFilterBandwidth(MPU6050_BAND_44_HZ);
+
+  CurXCoord = 0;
+  CurYCoord = 0;
 
   //Attach motor update ISR to timer to run every STEPPER_INTERVAL_US μs
   if (!ITimer.attachInterruptInterval(STEPPER_INTERVAL_US, TimerHandler)) {
@@ -158,7 +162,7 @@ void setup()
 void setco() {
   // If both distances have been reached, stop and exit autonomous mode
   if (xdistance == 0 && ydistance == 0) {
-    set_speed = 0;
+    set_speed = 0;                            // Possibliy change to accelAngle bias
     isAutonomous = false;
     return;
   }
@@ -225,30 +229,50 @@ void setco() {
 
 
 void handleCommand(const char* cmd) {
+  Serial.print("handleCommand received raw: ");
+  Serial.println(cmd);
+
   if (cmd[0] == 'x') {
     float x = 0, y = 0;
     const char* pX = strchr(cmd, 'x');
     const char* pY = strchr(cmd, 'y');
     if (pX) x = atof(pX + 1);
     if (pY) y = atof(pY + 1);
+
     xdistance = x;
     ydistance = y;
     turned = false;
     isAutonomous = true;
-    Serial.print("Received target: X=");
+
+    Serial.print("Parsed target X: ");
     Serial.print(x);
-    Serial.print(" Y=");
+    Serial.print("  Y: ");
     Serial.println(y);
+
+    Serial.print("Autonomous activated: ");
+    Serial.println(isAutonomous);
   } else {
+    Serial.print("Received non-x command: ");
+    Serial.println(cmd[0]);
+
     switch (cmd[0]) {
-      case 'f': accelAngle = set_speed = -15; currentOperation = 'f'; isTurningClock = false; isTurningAnti = false; break;      // changed from  (a.acceleration.z/9.67) - 0.025; change tilt angle instead
-      case 'r': set_speed = 15; currentOperation = 'r'; isTurningClock = false; isTurningAnti = false; break;
+      case 'f': set_speed = -15; currentOperation = 'f'; isTurningClock = false; isTurningAnti = false; break;
+      case 'r': set_speed = 15;  currentOperation = 'r'; isTurningClock = false; isTurningAnti = false; break;
       case 'c': if (!isTurningClock) { turn_reference += 1.57; currentOperation = 'c'; isTurningClock = true; isTurningAnti = false; } break;
-      case 'a': if (!isTurningAnti) { turn_reference -= 1.57; currentOperation = 'a'; isTurningAnti = true; isTurningClock = false; } break;
-      case 's': set_speed = 0; currentOperation = 's'; isTurningClock = false; isTurningAnti = false; break;
+      case 'a': if (!isTurningAnti)  { turn_reference -= 1.57; currentOperation = 'a'; isTurningAnti = true; isTurningClock = false; } break;
+      case 's': set_speed = 0;   currentOperation = 's'; isTurningClock = false; isTurningAnti = false; break;
+      case 'q': set_speed = 0.0;
+                isTurningClock = false;
+                isTurningAnti = false;
+                isAutonomous = false;
+                CurXCoord = CurYCoord = PrevXCoord = PrevYCoord = 0.0;
+                PrevWheelPos = CurrentXDistance = CurrentYDistance = currentSpinAngle = prevspin = 0.0;
+                Serial.println("Reset command received.");
+                break;
     }
   }
 }
+
 
 void checkSerialInput() {
   while (Serial.available()) {
@@ -277,8 +301,8 @@ void loop()
     mpu.getEvent(&a, &g, &temp);
 
     //Calculate accelerometer Tilt using sin x = x approximation for a small tilt angle and measure gyroscope tilt
-    accelAngle = (a.acceleration.z/9.67) - 0.009;   // greater minus, moves towards R
-    spinAngle = (g.gyro.roll) + 0.076;     // on other robot + 0.0721
+    accelAngle = (a.acceleration.z/9.67) + 0.010;   // greater minus, moves towards R
+    spinAngle = (g.gyro.roll) + 0.001;     // on other robot + 0.0721     // greater plus, moves clockwise
     gyroAngle = (g.gyro.pitch);
 
   
