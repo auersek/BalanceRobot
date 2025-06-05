@@ -11,6 +11,9 @@
 #include <queue>
 #include <unordered_map>
 #include <set>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+
 
 enum class CellState { UNKNOWN, FREE, OBSTACLE, TARGET, ROBOT };
 
@@ -26,6 +29,7 @@ std::vector<std::pair<int,int>> path;
 size_t pathIndex = 0;
 bool pathActive = false;
 
+
 std::pair<int,int> worldToGrid(float x, float y) {
     int gx = static_cast<int>((x / physicalCellSize)+15);
     int gy = static_cast<int>((y / physicalCellSize)+15);
@@ -33,6 +37,30 @@ std::pair<int,int> worldToGrid(float x, float y) {
     gy = std::max(0, std::min(gridHeight - 1, gy));
     return {gx, gy};
 }
+
+void castRayAndMark(float x0, float y0, float x1, float y1, std::vector<std::vector<CellState>>& grid) {
+    auto [gx0, gy0] = worldToGrid(x0, y0);
+    auto [gx1, gy1] = worldToGrid(x1, y1);
+
+    int dx = abs(gx1 - gx0), dy = abs(gy1 - gy0);
+    int sx = (gx0 < gx1) ? 1 : -1;
+    int sy = (gy0 < gy1) ? 1 : -1;
+    int err = dx - dy;
+
+    while (gx0 != gx1 || gy0 != gy1) {
+        if (grid[gy0][gx0] == CellState::UNKNOWN)
+            grid[gy0][gx0] = CellState::FREE;
+
+        int e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; gx0 += sx; }
+        if (e2 < dx)  { err += dx; gy0 += sy; }
+    }
+
+    if (grid[gy1][gx1] != CellState::ROBOT)
+        grid[gy1][gx1] = CellState::OBSTACLE;
+}
+
+
 
 int openSerialPort(const char* portName) {
     int fd = open(portName, O_RDWR | O_NOCTTY | O_NONBLOCK);
@@ -174,6 +202,7 @@ void moveAlongPath(int goalX, int goalY, int serialFd,
     }
 }
 
+
 int main(int argc, char** argv) {
     SDL_Init(SDL_INIT_VIDEO);
     SDL_Window* window = SDL_CreateWindow("Occupancy Grid", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, gridWidth * cellSize, gridHeight * cellSize, 0);
@@ -187,11 +216,19 @@ int main(int argc, char** argv) {
     std::string buffer;
     buffer.reserve(64);
 
+    // --- LIDAR UDP socket setup ---
+    int lidarSocket = socket(AF_INET, SOCK_DGRAM, 0);
+    sockaddr_in addr = {};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(5005);
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    bind(lidarSocket, (struct sockaddr*)&addr, sizeof(addr));
+    fcntl(lidarSocket, F_SETFL, O_NONBLOCK);
+
     bool running = true;
     while (running) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
-            
             if (event.type == SDL_QUIT) running = false;
             if (event.type == SDL_MOUSEBUTTONDOWN) {
                 int mx = event.button.x / cellSize;
@@ -200,11 +237,10 @@ int main(int argc, char** argv) {
                 path = aStarPath(startX, startY, mx, my, grid);
                 pathIndex = 0;
                 pathActive = !path.empty();
-                // std::cout << pathActive << "YOOOOOOO" << std::endl;
             }
-
         }
 
+        // --- Serial Read from ESP32 ---
         char readBuf[32];
         int n = read(serialFd, readBuf, sizeof(readBuf));
         if (n > 0) buffer.append(readBuf, n);
@@ -216,16 +252,17 @@ int main(int argc, char** argv) {
             if (cx == gx && cy == gy) {
                 pathIndex++;
             } else {
-            float wx = gx * physicalCellSize;
-            float wy = gy * physicalCellSize;
+                float wx = gx * physicalCellSize;
+                float wy = gy * physicalCellSize;
                 std::ostringstream oss;
-                oss << "x" << wx << "y" << wy << "\\n";
+                oss << "x" << wx << "y" << wy << "\n";
                 write(serialFd, oss.str().c_str(), oss.str().length());
-                pathActive = true; // stay active
+                pathActive = true;
                 std::cout << "Sending command: " << oss.str();
             }
-}
+        }
 
+        // --- Process robot position updates ---
         size_t pos;
         while ((pos = buffer.find('\n')) != std::string::npos) {
             std::string line = buffer.substr(0, pos);
@@ -233,22 +270,48 @@ int main(int argc, char** argv) {
 
             float rx = 0.0f, ry = 0.0f;
             if (sscanf(line.c_str(), "X:%f,Y:%f", &rx, &ry) == 2) {
+                CurXCoord = rx;
+                CurYCoord = ry;
                 auto [gx, gy] = worldToGrid(rx, ry);
 
-                // Mark previous robot cell as FREE
-                if (prevRobotX >= 0 && prevRobotY >= 0 && grid[prevRobotY][prevRobotX] == CellState::ROBOT) {
+                if (prevRobotX >= 0 && prevRobotY >= 0 && grid[prevRobotY][prevRobotX] == CellState::ROBOT)
                     grid[prevRobotY][prevRobotX] = CellState::FREE;
-                }
 
-                // Update to new position
                 if (grid[gy][gx] == CellState::UNKNOWN)
                     grid[gy][gx] = CellState::FREE;
+
                 grid[gy][gx] = CellState::ROBOT;
                 prevRobotX = gx;
                 prevRobotY = gy;
             }
         }
 
+        // --- LIDAR data reception and grid update ---
+        uint8_t buf[64];
+        socklen_t addrlen = sizeof(addr);
+        int len = recvfrom(lidarSocket, buf, sizeof(buf), 0, (struct sockaddr*)&addr, &addrlen);
+        if (len == 47) {
+            uint8_t index = buf[1];
+            uint16_t speed = *(uint16_t*)&buf[2];
+            float startAngle = (*(uint16_t*)&buf[4]) / 100.0f;
+            float stopAngle = (*(uint16_t*)&buf[44]) / 100.0f;
+            if (stopAngle < startAngle) stopAngle += 360.0f;
+
+            float angleStep = (stopAngle - startAngle) / 11.0f;
+            for (int i = 0; i < 12; ++i) {
+                float angleDeg = startAngle + angleStep * i;
+                float angleRad = angleDeg * M_PI / 180.0f;
+                uint16_t dist_mm = *(uint16_t*)&buf[6 + i * 3];
+                float dist_m = dist_mm / 1000.0f;
+
+                float obsX = CurXCoord + sin(angleRad) * dist_m;
+                float obsY = CurYCoord + cos(angleRad) * dist_m;
+
+                castRayAndMark(CurXCoord, CurYCoord, obsX, obsY, grid);
+            }
+        }
+
+        // --- Grid Rendering ---
         SDL_SetRenderDrawColor(renderer, 128, 128, 128, 255);
         SDL_RenderClear(renderer);
         for (int y = 0; y < gridHeight; ++y) {
