@@ -241,15 +241,43 @@ void handleCommand(const char* cmd) {
     Serial.print("Received target: X=");
     Serial.print(x);
     Serial.print(" Y=");
-    Serial.println(y);
-  } else {
-    switch (cmd[0]) {
-      case 'f': accelAngle = set_speed = -15; currentOperation = 'f'; isTurningClock = false; isTurningAnti = false; break;      // changed from  (a.acceleration.z/9.67) - 0.025; change tilt angle instead
-      case 'r': set_speed = 15; currentOperation = 'r'; isTurningClock = false; isTurningAnti = false; break;
-      case 'c': if (!isTurningClock) { turn_reference += 1.57; currentOperation = 'c'; isTurningClock = true; isTurningAnti = false; } break;
-      case 'a': if (!isTurningAnti) { turn_reference -= 1.57; currentOperation = 'a'; isTurningAnti = true; isTurningClock = false; } break;
-      case 's': set_speed = 0; currentOperation = 's'; isTurningClock = false; isTurningAnti = false; break;
-    }
+    Serial.println(y); 
+    return;
+  } 
+  if (cmd[0] == 's') {
+    set_speed = 0; 
+    currentOperation = 's'; 
+    isTurningClock = false; 
+    isTurningAnti = false; 
+    isAutonomous = false;
+    return;
+  }
+
+  if (cmd[0] == 'q') {
+    set_speed = 0.0;
+    isTurningClock = false;
+    isTurningAnti = false;
+
+    isAutonomous = false;
+
+    CurXCoord = 0.0;
+    CurYCoord = 0.0;
+    PrevWheelPos      = step1.getPositionRad();
+    CurrentXDistance  = 0.0;
+    CurrentYDistance  = 0.0;
+    PrevXCoord        = 0.0;
+    PrevYCoord        = 0.0;
+    currentSpinAngle  = 0.0;
+    prevspin          = 0.0;
+    return;
+  }
+  
+  switch (cmd[0]) {
+    case 'f': accelAngle = set_speed = -15; currentOperation = 'f'; isTurningClock = false; isTurningAnti = false; break;      // changed from  (a.acceleration.z/9.67) - 0.025; change tilt angle instead
+    case 'r': set_speed = 15; currentOperation = 'r'; isTurningClock = false; isTurningAnti = false; break;
+    case 'c': if (!isTurningClock) { turn_reference += 1.57; currentOperation = 'c'; isTurningClock = true; isTurningAnti = false; } break;
+    case 'a': if (!isTurningAnti) { turn_reference -= 1.57; currentOperation = 'a'; isTurningAnti = true; isTurningClock = false; } break;
+
   }
 }
 
@@ -269,6 +297,7 @@ void checkSerialInput() {
     }
   }
 }
+
 
 void loop()
 {
