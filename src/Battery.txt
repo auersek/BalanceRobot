@@ -1,0 +1,135 @@
+#include <Arduino.h>
+#include "torque.hpp"
+
+step motor(1000, STEP_PIN, DIR_PIN);        // Assuming you define this earlier
+TorqueEstimator torque_estimator(&motor);   // Pass motor reference
+
+//Battery Tracking
+float battery_capacity_mAh = 2000.0;  // Total rated capacity
+float battery_remaining_mAh = battery_capacity_mAh;
+unsigned long last_update_time = 0;
+
+//Sensing
+const int LOGIC_ADC_PIN = 34;
+const int MOTOR_ADC_PIN = 33
+const float VREF = 1.25;             // Reference voltage used in op-amp
+const float MOTOR_SHUNT_RESISTOR = 0.1;    // Ohms
+const float LOGIC_SHUNT_RESISTOR = 0.01;
+const float MOTOR_GAIN = 10;
+const float LOGIC_GAIN = 100;             // Op-amp gain
+const float ADC_MAX_VOLTAGE = 3.3;   // ESP32 ADC range
+const int ADC_RESOLUTION = 4095;     // 12-bit ADC
+const float LOW_BATTERY_THRESHOLD = 12.2;
+
+const float LOGIC_VOLTAGE = 5.0;  
+
+void setup() {
+  Serial.begin(115200);
+  analogReadResolution(12);
+}
+
+float readBatteryVoltage() {
+  int raw = analogRead(34);
+  float v_adc = raw * 3.3 / 4095.0;
+  float v_batt = v_adc * (10000.0 + 2000.0) / 2000.0;
+  return v_batt;
+}
+
+float readMotorVoltage() {
+  int raw = analogRead(35); // ADC pin to divider
+  float v_adc = raw * 3.3 / 4095.0;
+  float v_mot = v_adc * (15000.0 + 3300.0) / 3300.0;//use actual resistors
+  return v_mot;//<3V
+}
+
+void loop() {
+
+  //Motor Current Draw
+  int motor_adc = analogRead(MOTOR_ADC_PIN);
+  float motor_vOut = (motor_adc * ADC_MAX_VOLTAGE) / ADC_RESOLUTION;
+  float motor_current = (motor_vOut - VREF) / (MOTOR_GAIN * MOTOR_SHUNT_RESISTOR);
+
+  //Logic Current Draw
+  int logic_adc = analogRead(LOGIC_ADC_PIN);
+  float logic_vOut = (logic_adc * ADC_MAX_VOLTAGE) / ADC_RESOLUTION;
+  float logic_current = (logic_vOut - VREF) / (LOGIC_GAIN * LOGIC_SHUNT_RESISTOR);
+
+  //Total Current Draw
+  float total_current = logic_current + motor_current;
+  
+  //Coulomb Counting
+  unsigned long now = millis();
+  float delta_t_s = (now - last_update_time) / 1000.0;
+  last_update_time = now;
+
+  float used_mAh = total_current * (delta_t_s / 3600.0) * 1000.0; // A·s to mAh
+  battery_remaining_mAh -= used_mAh;
+  battery_remaining_mAh = constrain(battery_remaining_mAh, 0.0, battery_capacity_mAh);
+
+  float battery_percent = (battery_remaining_mAh / battery_capacity_mAh) * 100.0;
+
+  //Power Dissipation
+  float motor_voltage = readMotorVoltage();
+  float motor_power = motor_voltage * motor_current;
+
+  float logic_power = logic_current * LOGIC_VOLTAGE; 
+
+  float total_power = logic_power + motor_power;
+
+  //System Efficeincy
+  float battery_power = total_current * battery_voltage;
+  float total_output_power = logic_power + motor_power;
+  float system_efficiency = (battery_power > 0) ? (total_output_power / battery_power) * 100.0 : 0;
+
+  //Battery Voltage
+  float v_batt = readBatteryVoltage();
+
+  //Torque
+  float rpm = torque_estimator.calculateRPM();
+  float torque = torque_estimator.estimateTorque();
+
+  //Outputs
+  Serial.print("Motor Current = "); 
+  Serial.print(motor_current, 3); 
+  Serial.println(" A");
+
+  Serial.print("Logic Current = "); 
+  Serial.print(logic_current, 3); 
+  Serial.println(" A");
+
+  Serial.print("Battery Voltage = ");
+  Serial.print(v_batt, 3);
+  Serial.println(" V");
+
+  Serial.print("Battery Percentage: ");
+  Serial.print(percent, 1);
+  Serial.println(" %");
+
+  if (v_batt < LOW_BATTERY_THRESHOLD) {
+    Serial.println("Low Battery");
+  }
+
+  Serial.print("Logic Power = ");
+  Serial.print(logic_power, 3);
+  Serial.println(" W");
+
+  Serial.print("Motor Power = ");
+  Serial.print(motor_power, 3);
+  Serial.println(" W");
+
+  Serial.print("Total Power = ");
+  Serial.print(total_power, 3);
+  Serial.println(" W");
+
+  Serial.print("System Efficiency = ");
+  Serial.print(system_efficiency, 3);
+  Serial.println(" %");
+
+  Serial.print("RPM: ");
+  Serial.print(rpm);
+  Serial.print(" | Torque: ");
+  Serial.print(torque, 3);
+  Serial.println(" Nm");
+
+  delay(1000);
+}
