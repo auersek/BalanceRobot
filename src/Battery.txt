@@ -1,8 +1,4 @@
 #include <Arduino.h>
-#include "torque.hpp"
-
-step motor(1000, STEP_PIN, DIR_PIN);        // Assuming you define this earlier
-TorqueEstimator torque_estimator(&motor);   // Pass motor reference
 
 //Battery Tracking
 float battery_capacity_mAh = 2000.0;  // Total rated capacity
@@ -84,6 +80,10 @@ void loop() {
   //Battery Voltage
   float v_batt = readBatteryVoltage();
 
+  //Overload Detection
+  bool logic_overload = logic_current > LOGIC_OVERLOAD_THRESHOLD;
+  bool motor_overload = motor_current > MOTOR_OVERLOAD_THRESHOLD;
+
   //Torque
   float rpm = torque_estimator.calculateRPM();
   float torque = torque_estimator.estimateTorque();
@@ -106,7 +106,7 @@ void loop() {
   Serial.println(" %");
 
   if (v_batt < LOW_BATTERY_THRESHOLD) {
-    Serial.println("Low Battery");
+    Serial.println("LOW BATTERY");
   }
 
   Serial.print("Logic Power = ");
@@ -130,6 +130,8 @@ void loop() {
   Serial.print(" | Torque: ");
   Serial.print(torque, 3);
   Serial.println(" Nm");
+
+
 
   delay(1000);
 }
