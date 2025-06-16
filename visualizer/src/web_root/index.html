@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Robot Control Center</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <aside class="sidebar">
+    <button data-view="control">Control</button>
+    <button data-view="images">Images</button>
+    <button data-view="power">Power</button>
+  </aside>
+
+  <main class="container">
+    <section id="view-control">
+      <h1 class="main-title">Robot Control Center</h1>
+      <div class="grid-layout">
+        <div class="left-panel">
+          <section class="panel control-panel">
+            <h2>Movement Control</h2>
+            <div class="directional-buttons">
+              <div></div>
+              <div class="btn forward"       data-cmd="f">▲</div>
+              <div></div>
+              <div class="btn anticlockwise" data-cmd="a">◀</div>
+              <div class="btn stop"          data-cmd="s">■</div>
+              <div class="btn clockwise"     data-cmd="c">▶</div>
+              <div></div>
+              <div class="btn reverse"       data-cmd="r">▼</div>
+              <div></div>
+            </div>
+          </section>
+          <section class="panel coordinate-panel">
+            <h2>Set Coordinates</h2>
+            <label for="x-input">X:</label>
+            <input id="x-input" type="number" placeholder="e.g. 100" />
+            <label for="y-input">Y:</label>
+            <input id="y-input" type="number" placeholder="e.g. 200" />
+            <div class="btn send-coords">Send</div>
+          </section>
+        </div>
+
+        <div class="center-panel">
+          <section class="panel grid-panel">
+            <h2>Occupancy Grid</h2>
+            <canvas id="gridCanvas" width="500" height="500"></canvas>
+          </section>
+        </div>
+
+        <div class="right-panel">
+          <section class="panel detected-objects">
+            <h2>Detected Objects</h2>
+            <ul>
+              <li>Aurel (placeholder)</li>
+              <li>Edward (placeholder)</li>
+              <li>Enid (placeholder)</li>
+              <li>Maciek (placeholder)</li>
+            </ul>
+          </section>
+
+          <section class="panel battery-container">
+            <h2>Battery Level</h2>
+            <div class="battery-outline">
+              <div class="battery-level" id="battery-fill"></div>
+            </div>
+            <span id="battery-text">--%</span>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-images" style="display:none">
+      <h2>Drive Images</h2>
+      <div id="thumbnails">Loading…</div>
+    </section>
+
+    <section id="view-power" style="display:none">
+      <h2>Power Monitoring</h2>
+      <div class="metrics-container">
+        <div class="chart-wrapper">
+          <canvas id="motorChart"></canvas>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="controlChart"></canvas>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="main.js"></script>
+</body>
+</html>
